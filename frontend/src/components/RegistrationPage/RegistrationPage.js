@@ -10,8 +10,6 @@ const initialFormState = {
   year: '',
   password: '',
   confirmPassword: '',
-  registrationFee: 'INR 99',
-  paymentMethod: '',
 };
 
 const schools = ['SOET', 'SOSC', 'SOP', 'SOM'];
@@ -28,7 +26,6 @@ const branches = [
 ];
 
 const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-const paymentMethods = ['UPI', 'Card', 'Net Banking'];
 
 function RegistrationPage() {
   const [formData, setFormData] = useState(initialFormState);
@@ -279,55 +276,6 @@ function RegistrationPage() {
               )}
             </div>
           </div>
-
-          <section className="payment-section" aria-labelledby="payment-title">
-            <div className="payment-heading">
-              <p>Checkout</p>
-              <h3 id="payment-title">Payment</h3>
-            </div>
-
-            <div className="payment-grid">
-              <div className="field-group">
-                <label htmlFor="registrationFee">Registration Fee</label>
-                <input
-                  id="registrationFee"
-                  name="registrationFee"
-                  type="text"
-                  value={formData.registrationFee}
-                  readOnly
-                  aria-invalid={Boolean(errors.registrationFee)}
-                />
-                {errors.registrationFee && (
-                  <span className="error-message">{errors.registrationFee}</span>
-                )}
-              </div>
-
-              <div className="field-group">
-                <label htmlFor="paymentMethod">Payment Method</label>
-                <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  value={formData.paymentMethod}
-                  onChange={handleChange}
-                  aria-invalid={Boolean(errors.paymentMethod)}
-                >
-                  <option value="">Choose method</option>
-                  {paymentMethods.map((method) => (
-                    <option key={method} value={method}>
-                      {method}
-                    </option>
-                  ))}
-                </select>
-                {errors.paymentMethod && (
-                  <span className="error-message">{errors.paymentMethod}</span>
-                )}
-              </div>
-            </div>
-
-            <button className="payment-button" type="button">
-              Proceed to Payment
-            </button>
-          </section>
 
           <button className="register-button" type="submit">
             Register
