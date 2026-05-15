@@ -1,24 +1,79 @@
+:root {
+  --bg-dark: #111111;
+  --bg-cream: #fdfbf7;
+  --bg-pink: #ffb6c1;
+  --bg-mint: #98ff98;
+  --bg-grey: #222222;
+  
+  --text-light: #fdfbf7;
+  --text-dark: #111111;
+  --text-muted: #888888;
+  
+  --pink: #ffb6c1;
+  --mint: #98ff98;
+  --cyan: #00e5ff;
+  --black: #111111;
+  --cream: #fdfbf7;
+
+  --shadow-cinematic: 0 40px 100px rgba(0, 0, 0, 0.8);
+  --shadow-spotlight: 0 0 150px rgba(255, 255, 255, 0.1);
+  --shadow-glow-pink: 0 0 60px rgba(255, 182, 193, 0.4);
+  --shadow-glow-mint: 0 0 60px rgba(152, 255, 152, 0.4);
+  
+  --transition: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  --font-cinematic: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
 * {
   box-sizing: border-box;
-}
-
-body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: #060812;
+  padding: 0;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+html, body {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  font-family: var(--font-cinematic);
+  scroll-behavior: smooth;
 }
 
-button,
-input,
-select {
+/* Remove default scrollbar for immersive feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-grey);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pink);
+}
+
+button, input, select, textarea {
   font: inherit;
+  border: none;
+  outline: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--pink);
+  color: var(--black);
+}
+
+/* Base Utility Classes for Geometry */
+.geo-symbol {
+  font-family: monospace;
+  font-weight: 900;
+  line-height: 1;
+  user-select: none;
 }

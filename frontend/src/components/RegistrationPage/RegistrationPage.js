@@ -1,293 +1,159 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './RegistrationPage.css';
 
-const initialFormState = {
-  fullName: '',
-  collegeId: '',
-  email: '',
-  school: '',
-  branch: '',
-  year: '',
-  password: '',
-  confirmPassword: '',
-};
-
-const schools = ['SOET', 'SOSC', 'SOP', 'SOM'];
-
-const branches = [
-  'Computer Science',
-  'Information Technology',
-  'Electronics & Communication',
-  'Electrical Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Artificial Intelligence',
-  'Data Science',
-];
-
-const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-
 function RegistrationPage() {
-  const [formData, setFormData] = useState(initialFormState);
-  const [errors, setErrors] = useState({});
-  const [isRegistered, setIsRegistered] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    collegeId: '',
+    email: '',
+    school: '',
+    branch: '',
+    year: '',
+    password: '',
+    confirmPassword: ''
+  });
 
-  const validateForm = () => {
-    const nextErrors = {};
-
-    Object.entries(formData).forEach(([key, value]) => {
-      if (!value.trim()) {
-        nextErrors[key] = 'This field is required.';
-      }
-    });
-
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      nextErrors.email = 'Enter a valid email address.';
-    }
-
-    if (formData.password && formData.password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters.';
-    }
-
-    if (
-      formData.password &&
-      formData.confirmPassword &&
-      formData.password !== formData.confirmPassword
-    ) {
-      nextErrors.confirmPassword = 'Passwords do not match.';
-    }
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-
-    setFormData((currentFormData) => ({
-      ...currentFormData,
-      [name]: value,
-    }));
-
-    setErrors((currentErrors) => ({
-      ...currentErrors,
-      [name]: '',
-    }));
-    setIsRegistered(false);
-  };
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-
-    if (validateForm()) {
-      setIsRegistered(true);
-      setFormData(initialFormState);
-    }
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Handle registration
   };
 
   return (
     <main className="registration-page">
-      <div className="background-symbols" aria-hidden="true">
-        <span className="symbol-card symbol-question">?</span>
-        <span className="symbol-card symbol-buzzer">Q</span>
-        <span className="symbol-card symbol-controller">
-          <span className="controller-body">
-            <span className="controller-pad" />
-            <span className="controller-buttons" />
-          </span>
-        </span>
-        <span className="symbol-card symbol-spark">A+</span>
-        <span className="symbol-card symbol-ring">01</span>
-        <span className="symbol-card symbol-vs">VS</span>
+      <div className="registration-background">
+        <div className="bg-shape shape-pink-large" />
+        <div className="bg-shape shape-mint-square" />
+        <div className="bg-particles" />
       </div>
 
-      <section className="registration-shell" aria-labelledby="registration-title">
-        <div className="registration-copy">
-          <div className="arena-orbit" aria-hidden="true">
-            <span className="orbit-core">QV</span>
-            <span className="orbit-chip chip-top">?</span>
-            <span className="orbit-chip chip-right">A</span>
-            <span className="orbit-chip chip-bottom">3R</span>
-          </div>
-
-          <p className="event-label"> QuizVerse Campus League</p>
-          <h1 id="registration-title">Compete. Qualify. Conquer.</h1>
-          <p className="subtitle">
-            Register your profile and step into a high-stakes arena of campus quiz battles.
-          </p>
-
-          <div className="stats-row" aria-label="QuizVerse highlights">
-            <div>
-              <span>3</span>
-              <p>Rounds</p>
-            </div>
-            <div>
-              <span>2</span>
-              <p>Qualifier Zones</p>
-            </div>
-            <div>
-              <span>1</span>
-              <p>Champion Title</p>
-            </div>
-          </div>
-
-          <div className="arena-strip" aria-hidden="true">
-            <span>Live Leaderboard</span>
-            <span>Speed Round</span>
-            <span>Final Buzzer</span>
-          </div>
+      <div className="registration-container">
+        <div className="registration-header">
+          <div className="header-icon">○</div>
+          <h1 className="registration-title">PARTICIPANT REGISTRATION</h1>
+          <p className="registration-subtitle">Enter your official details to be verified for the arena.</p>
         </div>
 
-        <form className="registration-card" onSubmit={handleSubmit} noValidate>
-          <div className="form-header">
-            <p>Student Access</p>
-            <h2>Create your contender profile</h2>
-          </div>
-
-          <div className="form-grid">
-            <div className="field-group">
-              <label htmlFor="fullName">Full Name</label>
-              <input
-                id="fullName"
-                name="fullName"
-                type="text"
-                placeholder="Your Name"
-                value={formData.fullName}
-                onChange={handleChange}
-                aria-invalid={Boolean(errors.fullName)}
+        <form className="registration-form" onSubmit={handleSubmit}>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="fullName">FULL NAME</label>
+              <input 
+                id="fullName" 
+                name="fullName" 
+                type="text" 
+                placeholder="e.g. Aria Sharma" 
+                value={formData.fullName} 
+                onChange={handleChange} 
+                required 
               />
-              {errors.fullName && <span className="error-message">{errors.fullName}</span>}
             </div>
 
-            <div className="field-group">
-              <label htmlFor="collegeId">College ID</label>
-              <input
-                id="collegeId"
-                name="collegeId"
-                type="text"
-                placeholder="College ID"
-                value={formData.collegeId}
-                onChange={handleChange}
-                aria-invalid={Boolean(errors.collegeId)}
+            <div className="form-group">
+              <label htmlFor="collegeId">COLLEGE ID</label>
+              <input 
+                id="collegeId" 
+                name="collegeId" 
+                type="text" 
+                placeholder="e.g. 123456" 
+                value={formData.collegeId} 
+                onChange={handleChange} 
+                required 
               />
-              {errors.collegeId && <span className="error-message">{errors.collegeId}</span>}
-            </div>
-
-            <div className="field-group full-width">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="xyz@gmail.com"
-                value={formData.email}
-                onChange={handleChange}
-                aria-invalid={Boolean(errors.email)}
-              />
-              {errors.email && <span className="error-message">{errors.email}</span>}
-            </div>
-
-            <div className="compact-select-row">
-              <div className="field-group">
-                <label htmlFor="school">School</label>
-                <select
-                  id="school"
-                  name="school"
-                  value={formData.school}
-                  onChange={handleChange}
-                  aria-invalid={Boolean(errors.school)}
-                >
-                  <option value="">Select school</option>
-                  {schools.map((school) => (
-                    <option key={school} value={school}>
-                      {school}
-                    </option>
-                  ))}
-                </select>
-                {errors.school && <span className="error-message">{errors.school}</span>}
-              </div>
-
-              <div className="field-group">
-                <label htmlFor="branch">Branch</label>
-                <select
-                  id="branch"
-                  name="branch"
-                  value={formData.branch}
-                  onChange={handleChange}
-                  aria-invalid={Boolean(errors.branch)}
-                >
-                  <option value="">Select branch</option>
-                  {branches.map((branch) => (
-                    <option key={branch} value={branch}>
-                      {branch}
-                    </option>
-                  ))}
-                </select>
-                {errors.branch && <span className="error-message">{errors.branch}</span>}
-              </div>
-
-              <div className="field-group">
-                <label htmlFor="year">Year</label>
-                <select
-                  id="year"
-                  name="year"
-                  value={formData.year}
-                  onChange={handleChange}
-                  aria-invalid={Boolean(errors.year)}
-                >
-                  <option value="">Select year</option>
-                  {years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                {errors.year && <span className="error-message">{errors.year}</span>}
-              </div>
-            </div>
-
-            <div className="field-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Create password"
-                value={formData.password}
-                onChange={handleChange}
-                aria-invalid={Boolean(errors.password)}
-              />
-              {errors.password && <span className="error-message">{errors.password}</span>}
-            </div>
-
-            <div className="field-group">
-              <label htmlFor="confirmPassword">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Repeat password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                aria-invalid={Boolean(errors.confirmPassword)}
-              />
-              {errors.confirmPassword && (
-                <span className="error-message">{errors.confirmPassword}</span>
-              )}
             </div>
           </div>
 
-          <button className="register-button" type="submit">
-            Register
-          </button>
+          <div className="form-group full-width">
+            <label htmlFor="email">STUDENT EMAIL</label>
+            <input 
+              id="email" 
+              name="email" 
+              type="email" 
+              placeholder="player@university.edu" 
+              value={formData.email} 
+              onChange={handleChange} 
+              required 
+            />
+          </div>
 
-          {isRegistered && (
-            <p className="success-message" role="status">
-              Registration saved locally. Backend connection can come next.
-            </p>
-          )}
+          <div className="form-row three-col">
+            <div className="form-group">
+              <label htmlFor="school">SCHOOL</label>
+              <select id="school" name="school" value={formData.school} onChange={handleChange} required>
+                <option value="">SELECT</option>
+                <option value="SOET">SOET</option>
+                <option value="SOSC">SOSC</option>
+                <option value="SOP">SOP</option>
+                <option value="SOM">SOM</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="branch">BRANCH</label>
+              <select id="branch" name="branch" value={formData.branch} onChange={handleChange} required>
+                <option value="">SELECT</option>
+                <option value="CSE">CSE</option>
+                <option value="ECE">ECE</option>
+                <option value="MECH">MECH</option>
+                <option value="CIVIL">CIVIL</option>
+                <option value="OTHER">OTHER</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="year">YEAR</label>
+              <select id="year" name="year" value={formData.year} onChange={handleChange} required>
+                <option value="">SELECT</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="password">PASSWORD</label>
+              <input 
+                id="password" 
+                name="password" 
+                type="password" 
+                placeholder="••••••••" 
+                value={formData.password} 
+                onChange={handleChange} 
+                required 
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="confirmPassword">CONFIRM PASSWORD</label>
+              <input 
+                id="confirmPassword" 
+                name="confirmPassword" 
+                type="password" 
+                placeholder="••••••••" 
+                value={formData.confirmPassword} 
+                onChange={handleChange} 
+                required 
+              />
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="btn-submit btn-pink">SUBMIT REGISTRATION</button>
+          </div>
         </form>
-      </section>
+
+        <div className="registration-footer">
+          <Link to="/login" className="link-secondary">ALREADY REGISTERED? ENTER SYSTEM</Link>
+        </div>
+      </div>
     </main>
   );
 }

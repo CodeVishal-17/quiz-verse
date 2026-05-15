@@ -1,193 +1,269 @@
 import { Link } from 'react-router-dom';
 import './LandingPage.css';
 
+const SYMBOLS = {
+  triangle: '\u25B3',
+  circle: '\u25CB',
+  square: '\u25A1',
+  sword: '\u2694',
+  block: '\u25B0',
+  diamond: '\u25C7',
+  wave: '\u2301',
+  ring: '\u25CC',
+  panel: '\u25A3',
+  filledTriangle: '\u25B2',
+  window: '\u232C',
+  dot: '\u00B7',
+};
+
 function LandingPage() {
+  const systemCards = [
+    {
+      symbol: SYMBOLS.triangle,
+      value: '3',
+      label: 'Rounds',
+      detail: 'Qualifier. Survival. Final Showdown.',
+      tone: 'pink',
+    },
+    {
+      symbol: SYMBOLS.circle,
+      value: '2',
+      label: 'Qualifier Zones',
+      detail: 'Top contenders advance toward the final arena.',
+      tone: 'mint',
+    },
+    {
+      symbol: SYMBOLS.square,
+      value: '1',
+      label: 'Champion Title',
+      detail: 'One player rises above all.',
+      tone: 'cream',
+    },
+  ];
+
+  const featureCards = [
+    {
+      icon: SYMBOLS.sword,
+      title: 'Monthly Campus Battles',
+      text: 'Compete against the brightest minds from every school in intense monthly showdowns built around speed, accuracy, and survival under pressure.',
+      className: 'card-battles',
+    },
+    {
+      icon: SYMBOLS.block,
+      title: 'Live Rankings',
+      text: 'Track score movement as the arena updates in real time. Every correct answer, streak, and response window changes the broadcast board.',
+      className: 'card-rankings',
+    },
+    {
+      icon: SYMBOLS.diamond,
+      title: 'Final Round Access',
+      text: 'Only the strongest contenders secure access to the final survival stage where the title is decided.',
+      className: 'card-access',
+    },
+    {
+      icon: SYMBOLS.wave,
+      title: 'Fastest Finger First',
+      text: 'Lightning rounds reward sharp recall and clean timing before the main survival ladder opens.',
+      className: 'card-finger',
+    },
+    {
+      icon: SYMBOLS.ring,
+      title: 'Live Match Updates',
+      text: 'Arena panels surface active rounds, score pulses, and qualification movement as the battle unfolds.',
+      className: 'card-updates',
+    },
+    {
+      icon: SYMBOLS.panel,
+      title: 'Qualification Status',
+      text: 'Know exactly when your run crosses from contender to finalist with visible zone progress.',
+      className: 'card-status',
+    },
+    {
+      icon: SYMBOLS.filledTriangle,
+      title: 'Top Schools',
+      text: 'Campus-wide school boards spotlight the strongest departments across every monthly event.',
+      className: 'card-schools',
+    },
+    {
+      icon: SYMBOLS.square,
+      title: 'Branch Rankings',
+      text: 'Branch-specific leaderboards keep rivalries sharp and make every cohort visible in the system.',
+      className: 'card-branches',
+    },
+    {
+      icon: SYMBOLS.window,
+      title: 'Final Access Window',
+      text: 'A limited entry window opens for qualified players before the final arena locks.',
+      className: 'card-window',
+    },
+  ];
+
+  const schoolLine = (school, year) => `${school} ${SYMBOLS.dot} ${year}`;
+
   return (
     <main className="landing-page">
-      <div className="landing-background" aria-hidden="true">
-        <span className="particle particle-a" />
-        <span className="particle particle-b" />
-        <span className="particle particle-c" />
-        <span className="floating-card floating-card-one">VS</span>
-        <span className="floating-card floating-card-two">?</span>
-        <span className="floating-icon floating-icon-bolt">Q</span>
-        <span className="floating-icon floating-icon-star">★</span>
+      <div className="landing-background">
+        <div className="bg-shape shape-pink" />
+        <div className="bg-shape shape-mint" />
+        <div className="bg-particles" />
+        <div className="system-gridlines" />
+        <div className="environment-symbol symbol-triangle">{SYMBOLS.triangle}</div>
+        <div className="environment-symbol symbol-circle">{SYMBOLS.circle}</div>
+        <div className="environment-symbol symbol-square">{SYMBOLS.square}</div>
+        <div className="environment-symbol symbol-code">{'{ }'}</div>
+        <div className="environment-symbol symbol-query">?</div>
+        <div className="environment-panel panel-one" />
+        <div className="environment-panel panel-two" />
+        <div className="environment-panel panel-three" />
       </div>
 
-      <nav className="landing-nav">
-        <div className="brand-wrap">
-          <div className="brand-logo" aria-hidden="true">ITM</div>
-          <div>
-            <p className="brand-name">QuizVerse</p>
-            <p className="brand-subtitle">ITM University Gwalior</p>
-          </div>
-        </div>
-
-        <div className="nav-links">
-          <a href="#home">Home</a>
-          <a href="#about">About</a>
-          <a href="#events">Events</a>
-          <a href="#leaderboard">Leaderboard</a>
-        </div>
-
-        <div className="nav-actions">
-          <Link className="nav-button nav-login" to="/login">
-            Login
-          </Link>
-          <Link className="nav-button nav-register" to="/register">
-            Register
-          </Link>
-        </div>
-      </nav>
-
-      <section className="hero-section" id="home">
-        <div className="hero-copy">
-          <span className="hero-tag">Campus Quiz Arena</span>
-          <h1>QuizVerse</h1>
-          <p className="hero-headline">Enter The Ultimate Campus Quiz Arena</p>
-          <p className="hero-description">
-            Monthly campus quiz battles with multi-round competitions, branch-wise qualifiers,
-            championship format, and the fiercest student engagement across ITM University.
-          </p>
-
-          <div className="hero-cta">
-            <Link className="hero-button hero-register" to="/register">
-              Register Now
-            </Link>
-            <Link className="hero-button hero-login" to="/login">
-              Login
-            </Link>
-          </div>
-        </div>
-
-        <div className="hero-visual">
-          <div className="hero-frame">
-            <div className="hero-glow" />
-            <div className="hero-card hero-card-main">
-              <span className="card-label">Next Battle</span>
-              <strong>Inter-branch Speed Quiz</strong>
-              <p>Qualifiers in 4 branches. Only one champion stands tall.</p>
+      <section className="landing-hero-section">
+        <div className="landing-container">
+          <div className="landing-content">
+            <div className="content-badge">
+              <span className="badge-pulse" />
+              ROUND ACCESS NOW OPEN
             </div>
-            <div className="hero-card hero-card-side">Monthly Prize Pool</div>
-            <div className="hero-card hero-card-small">Fastest Finger</div>
-          </div>
-        </div>
-      </section>
 
-      <section className="highlights-section" id="leaderboard">
-        <div className="section-intro">
-          <span className="section-tag">Competition Highlights</span>
-          <h2>What makes QuizVerse the arena to win</h2>
-        </div>
+            <h1 className="landing-title">QuizVerse</h1>
 
-        <div className="highlight-grid">
-          <article className="highlight-card">
-            <p>3 Rounds</p>
-            <strong>Qualify, Battle, Conquer</strong>
-          </article>
-          <article className="highlight-card">
-            <p>Branch Qualifiers</p>
-            <strong>School-based matchups</strong>
-          </article>
-          <article className="highlight-card">
-            <p>Fastest Finger First</p>
-            <strong>Lightning speed rounds</strong>
-          </article>
-          <article className="highlight-card">
-            <p>Champion Title</p>
-            <strong>Only one winner survives</strong>
-          </article>
-          <article className="highlight-card">
-            <p>Monthly Prize Pool</p>
-            <strong>Rewards for top performers</strong>
-          </article>
-        </div>
-      </section>
+            <div className="landing-description">
+              <p className="desc-highlight">Monthly campus challenge.</p>
+              <p className="desc-main">
+                A real immersive campus competition universe inspired by survival-game aesthetics.
+              </p>
+            </div>
 
-      <section className="event-section" id="events">
-        <div className="section-intro">
-          <span className="section-tag">Upcoming Event</span>
-          <h2>Next quiz season is charging up</h2>
-        </div>
+            <div className="landing-actions">
+              <Link to="/login" className="btn-action btn-enter">
+                <span className="btn-icon">{SYMBOLS.triangle}</span>
+                ENTER SYSTEM
+              </Link>
+              <Link to="/register" className="btn-action btn-register">
+                <span className="btn-icon">{SYMBOLS.circle}</span>
+                REGISTER
+              </Link>
+            </div>
 
-        <div className="event-panel">
-          <div className="event-info">
-            <p className="event-title">ITM QuizVerse Arena Showdown</p>
-            <div className="event-metrics">
-              <div>
-                <span>Registration opens</span>
-                <strong>20 May</strong>
-              </div>
-              <div>
-                <span>Quiz date</span>
-                <strong>28 May</strong>
-              </div>
-              <div>
-                <span>Prize pool</span>
-                <strong>₹35,000</strong>
+            <div className="landing-mantra" aria-label="Compete. Qualify. Conquer.">
+              <span className="mantra-line mantra-compete" data-text="Compete.">Compete.</span>
+              <span className="mantra-line mantra-qualify" data-text="Qualify.">Qualify.</span>
+              <span className="mantra-line mantra-conquer" data-text="Conquer.">Conquer.</span>
+              <div className="mantra-scan">
+                <span>{SYMBOLS.triangle}</span>
+                <span>{SYMBOLS.circle}</span>
+                <span>{SYMBOLS.square}</span>
               </div>
             </div>
           </div>
 
-          <div className="event-countdown">
-            <p className="countdown-label">Countdown to battle</p>
-            <div className="countdown-grid">
-              <div>
-                <span>05</span>
-                <small>Days</small>
+          <div className="landing-leaderboard">
+            <div className="leaderboard-panel">
+              <div className="panel-header">
+                <h2 className="panel-title">TOP PLAYERS RISING</h2>
+                <span className="panel-status">LIVE RANKINGS</span>
               </div>
-              <div>
-                <span>12</span>
-                <small>Hours</small>
+
+              <div className="ranking-list">
+                <div className="rank-card rank-1">
+                  <div className="rank-pos">01</div>
+                  <div className="rank-info">
+                    <span className="player-name">Aria Sharma</span>
+                    <span className="player-school">{schoolLine('SOET', 'Year 3')}</span>
+                  </div>
+                  <div className="rank-score">9,450</div>
+                </div>
+
+                <div className="rank-card rank-2">
+                  <div className="rank-pos">02</div>
+                  <div className="rank-info">
+                    <span className="player-name">Kabir Singh</span>
+                    <span className="player-school">{schoolLine('SOSC', 'Year 2')}</span>
+                  </div>
+                  <div className="rank-score">8,120</div>
+                </div>
+
+                <div className="rank-card rank-3">
+                  <div className="rank-pos">03</div>
+                  <div className="rank-info">
+                    <span className="player-name">Meera Patel</span>
+                    <span className="player-school">{schoolLine('SOM', 'Year 4')}</span>
+                  </div>
+                  <div className="rank-score">7,900</div>
+                </div>
+
+                <div className="rank-card">
+                  <div className="rank-pos">04</div>
+                  <div className="rank-info">
+                    <span className="player-name">Rohan Gupta</span>
+                    <span className="player-school">{schoolLine('SOET', 'Year 1')}</span>
+                  </div>
+                  <div className="rank-score">7,200</div>
+                </div>
+
+                <div className="rank-card">
+                  <div className="rank-pos">05</div>
+                  <div className="rank-info">
+                    <span className="player-name">Sneha Reddy</span>
+                    <span className="player-school">{schoolLine('SOP', 'Year 3')}</span>
+                  </div>
+                  <div className="rank-score">6,400</div>
+                </div>
               </div>
-              <div>
-                <span>38</span>
-                <small>Minutes</small>
-              </div>
-              <div>
-                <span>21</span>
-                <small>Seconds</small>
+
+              <div className="panel-footer">
+                <button className="btn-view-all">VIEW FULL LEADERBOARD</button>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="about-section" id="about">
-        <div className="section-intro">
-          <span className="section-tag">About QuizVerse</span>
-          <h2>Interactive, competitive, and built for ITM students</h2>
-        </div>
+      <section className="landing-flashcards-section">
+        <div className="flashcards-container">
+          <div className="flashcards-header">
+            <h2>SYSTEM PARAMETERS</h2>
+            <p>Understand the rules of the arena.</p>
+          </div>
 
-        <div className="about-grid">
-          <div className="about-card">
-            <h3>Open to all branches</h3>
-            <p>Students from different schools and streams compete on a level playing field.</p>
+          <div className="system-cards-grid">
+            {systemCards.map((card) => (
+              <button className={`flashcard flip-card-container system-card system-${card.tone}`} key={card.label}>
+                <span className="system-card-orbit">{card.symbol}</span>
+                <div className="flip-card-inner">
+                  <div className="flip-card-front">
+                    <div className="front-symbols">
+                      <span>{card.symbol}</span>
+                    </div>
+                    <div className="front-value">{card.value}</div>
+                    <div className="front-label">{card.label}</div>
+                  </div>
+                  <div className="flip-card-back">
+                    <div className="back-symbol">{card.symbol}</div>
+                    <h3>{card.value} {card.label}</h3>
+                    <p>{card.detail}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
-          <div className="about-card">
-            <h3>Multi-stage elimination</h3>
-            <p>From qualifiers to finals, every round raises the stakes for top contenders.</p>
-          </div>
-          <div className="about-card">
-            <h3>Immersive quiz format</h3>
-            <p>Engaging rounds, real-time scoring, and dynamic quiz challenges make every match intense.</p>
+
+          <div className="flashcards-grid">
+            {featureCards.map((card) => (
+              <article className={`flashcard normal-card ${card.className}`} key={card.title}>
+                <div className="card-topline">
+                  <div className="card-icon">{card.icon}</div>
+                  <span>LIVE MODULE</span>
+                </div>
+                <h3>{card.title}</h3>
+                <div className="card-copy">
+                  <p>{card.text}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
-
-      <footer className="landing-footer">
-        <div>
-          <p className="footer-brand">QuizVerse</p>
-          <p>ITM University Gwalior</p>
-        </div>
-        <div className="footer-social">
-          <span>Socials</span>
-          <span>•</span>
-          <span>•</span>
-          <span>•</span>
-        </div>
-        <p className="footer-copy">© 2026 QuizVerse. Built for ITM University Gwalior.</p>
-      </footer>
     </main>
   );
 }

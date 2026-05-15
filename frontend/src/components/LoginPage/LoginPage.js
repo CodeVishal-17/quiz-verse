@@ -1,128 +1,82 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './LoginPage.css';
 
-const initialLoginState = {
-  collegeId: '',
-  password: '',
-  rememberMe: false,
-};
-
 function LoginPage() {
-  const [loginData, setLoginData] = useState(initialLoginState);
+  const [loginData, setLoginData] = useState({ collegeId: '', email: '', password: '' });
 
-  const handleChange = (event) => {
-    const { checked, name, type, value } = event.target;
-
-    setLoginData((currentLoginData) => ({
-      ...currentLoginData,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+  const handleChange = (e) => {
+    setLoginData({ ...loginData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Proceed with login
   };
 
   return (
     <main className="login-page">
-      <div className="login-particles" aria-hidden="true">
-        <span className="particle particle-one" />
-        <span className="particle particle-two" />
-        <span className="particle particle-three" />
-        <span className="particle particle-four" />
+      <div className="login-background">
+        <div className="bg-shape shape-mint" />
+        <div className="bg-particles" />
       </div>
 
-      <div className="login-symbols" aria-hidden="true">
-        <span className="login-symbol symbol-quiz">?</span>
-        <span className="login-symbol symbol-bolt">Q</span>
-        <span className="login-symbol symbol-score">99</span>
-        <span className="login-symbol symbol-pad">
-          <span className="mini-controller">
-            <span className="mini-cross" />
-            <span className="mini-buttons" />
-          </span>
-        </span>
-      </div>
-
-      <section className="login-shell" aria-labelledby="login-title">
-        <div className="login-hero">
-          <div className="login-orbit" aria-hidden="true">
-            <span className="login-core">QV</span>
-            <span className="login-chip chip-question">?</span>
-            <span className="login-chip chip-rank">#1</span>
-            <span className="login-chip chip-timer">60s</span>
-          </div>
-
-          <p className="login-label">QuizVerse Campus League</p>
-          <h1 id="login-title">Enter The Arena.</h1>
-          <p className="login-subtitle">
-            Log in and continue your journey through the ultimate campus quiz battleground.
-          </p>
-
-          <div className="login-arena-tags" aria-hidden="true">
-            <span>Live Rank</span>
-            <span>Power Round</span>
-            <span>Final Buzzer</span>
-          </div>
+      <div className="login-container">
+        <div className="login-header">
+          <div className="header-icon">△</div>
+          <h1 className="login-title">PLAYER ACCESS</h1>
+          <p className="login-subtitle">Enter your credentials to resume your run in the arena.</p>
         </div>
 
-        <form className="login-card" onSubmit={handleSubmit}>
-          <div className="login-card-header">
-            <p>Player Access</p>
-            <h2>Resume your run</h2>
-          </div>
-
-          <div className="login-field">
-            <label htmlFor="collegeId">College ID</label>
-            <input
-              id="collegeId"
-              name="collegeId"
-              type="text"
-              placeholder="College ID"
-              value={loginData.collegeId}
-              onChange={handleChange}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="collegeId">COLLEGE ID</label>
+            <input 
+              id="collegeId" 
+              name="collegeId" 
+              type="text" 
+              placeholder="e.g. 123456" 
+              value={loginData.collegeId} 
+              onChange={handleChange} 
+              required
             />
           </div>
 
-          <div className="login-field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Enter password"
-              value={loginData.password}
-              onChange={handleChange}
+          <div className="form-group">
+            <label htmlFor="email">STUDENT EMAIL</label>
+            <input 
+              id="email" 
+              name="email" 
+              type="email" 
+              placeholder="player@university.edu" 
+              value={loginData.email} 
+              onChange={handleChange} 
+              required
             />
           </div>
 
-          <div className="login-options">
-            <label className="remember-check" htmlFor="rememberMe">
-              <input
-                id="rememberMe"
-                name="rememberMe"
-                type="checkbox"
-                checked={loginData.rememberMe}
-                onChange={handleChange}
-              />
-              <span>Remember Me</span>
-            </label>
-
-            <a href="#forgot-password">Forgot Password?</a>
+          <div className="form-group">
+            <label htmlFor="password">PASSWORD</label>
+            <input 
+              id="password" 
+              name="password" 
+              type="password" 
+              placeholder="••••••••" 
+              value={loginData.password} 
+              onChange={handleChange} 
+              required
+            />
           </div>
 
-          <button className="login-button" type="submit">
-            Login
-          </button>
-
-          <div className="create-account-panel">
-            <p>New to QuizVerse?</p>
-            <button className="create-account-button" type="button">
-              Create Account
-            </button>
+          <div className="form-actions">
+            <button type="submit" className="btn-submit">VERIFY IDENTITY</button>
           </div>
         </form>
-      </section>
+
+        <div className="login-footer">
+          <Link to="/register" className="link-secondary">NEW PLAYER? REGISTER HERE</Link>
+        </div>
+      </div>
     </main>
   );
 }
