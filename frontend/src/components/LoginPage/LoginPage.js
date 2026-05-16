@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 
 function LoginPage() {
   const [loginData, setLoginData] = useState({ collegeId: '', email: '', password: '' });
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setLoginData({ ...loginData, [e.target.name]: e.target.value });
@@ -11,7 +12,7 @@ function LoginPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Proceed with login
+    navigate('/dashboard');
   };
 
   return (
