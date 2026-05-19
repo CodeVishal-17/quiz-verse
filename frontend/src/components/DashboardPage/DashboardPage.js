@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { getAuthSession } from '../../api/auth';
+import { getPublishedQuizzes, getMyRegistrations, registerForQuiz, processMockPayment } from '../../api/quizzes';
 import './DashboardPage.css';
 
 const SYMBOLS = {
@@ -22,15 +24,23 @@ function DashboardPage() {
   const [profileImage, setProfileImage] = useState('');
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [coreOffset, setCoreOffset] = useState({ x: 0, y: 0 });
+  const [publishedQuizzes, setPublishedQuizzes] = useState([]);
+  const [myRegistrations, setMyRegistrations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const isLight = theme === 'light';
+  
+  const session = getAuthSession();
+  const studentData = session?.student || {};
   const student = {
-    name: 'Lyn',
-    school: 'SOET',
-    branch: 'AIML',
-    year: '2nd Year',
+    name: studentData.full_name || 'Student',
+    school: studentData.school_name || 'School',
+    branch: studentData.branch_name || 'Branch',
+    year: studentData.year ? `${studentData.year} Year` : 'Year',
     status: 'Competition Ready',
-    lastBadge: 'QUALIFIER',
+    lastBadge: studentData.last_badge || 'QUALIFIER',
   };
 
   const navigation = [
@@ -40,69 +50,75 @@ function DashboardPage() {
     { label: 'Payments & History', symbol: SYMBOLS.circle },
   ];
 
-  const registeredQuizzes = [
-    {
-      title: 'AI Battle Week',
-      meta: 'Inter-School Qualifiers',
-      status: 'Registered',
-      payment: 'Payment Confirmed',
-      round: 'Briefing unlocks tomorrow',
-      date: 'May 18, 2026 - 6:00 PM',
-      description: 'A school-wide quiz sprint focused on AI fundamentals, applied reasoning, and fast recall.',
-      structure: 'Qualifier > Survival Round > Final Access Window',
-      instructions: 'Keep your student email active. Briefing materials unlock before the qualifier window opens.',
-      qualification: 'Top qualifying scores move into the Survival Round.',
-      tone: 'mint',
-    },
-    {
-      title: 'Code Recall Sprint',
-      meta: 'Department Trial',
-      status: 'Briefing Soon',
-      payment: 'No fee required',
-      round: 'Qualifier round scheduled',
-      date: 'May 24, 2026 - 4:30 PM',
-      description: 'A department-level recall challenge built around syntax, logic traces, and output prediction.',
-      structure: 'Fastest Finger First > Department Qualifier',
-      instructions: 'Review language basics and arrive five minutes before the entry window opens.',
-      qualification: 'FFF qualified students receive direct qualifier access.',
-      tone: 'pink',
-    },
-    {
-      title: 'Logic Ladder',
-      meta: 'Previous Event',
-      status: 'Entry Locked',
-      payment: 'Receipt archived',
-      round: 'Reached Round 3',
-      date: 'May 02, 2026 - Archived',
-      description: 'A completed reasoning ladder event covering puzzles, patterns, and elimination rounds.',
-      structure: 'Qualifier > Round 1 > Round 2 > Round 3',
-      instructions: 'Archived event. Results and receipt remain available for review.',
-      qualification: 'Round 3 reached. Finalist access was missed by one segment.',
-      tone: 'cream',
-    },
-  ];
+  const fetchDashboardData = async (isBackground = false) => {
+    try {
+      if (!isBackground) setLoading(true);
+      const token = session?.token;
+      if (!token) return;
 
-  const briefings = [
-    { label: 'AI Battle Week', value: 'Briefing unlocks tomorrow' },
-    { label: 'Payment Desk', value: 'Receipt synced' },
-    { label: 'Notice Board', value: '2 competition updates' },
-  ];
+      const [quizzesData, registrationsData] = await Promise.all([
+        getPublishedQuizzes(token),
+        getMyRegistrations(token)
+      ]);
 
-  const linePoints = '0,52 34,44 68,48 102,28 136,34 170,18 204,24 238,12';
-
-  const handleImageUpload = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
+      setPublishedQuizzes(quizzesData);
+      setMyRegistrations(registrationsData);
+    } catch (err) {
+      console.error('Failed to load dashboard data', err);
+    } finally {
+      if (!isBackground) setLoading(false);
     }
+  };
 
-    setProfileImage(URL.createObjectURL(file));
+  useEffect(() => {
+    fetchDashboardData();
+    // Live synchronization: re-fetch published quizzes and registrations every 5 seconds
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRegister = async (quizId) => {
+    try {
+      setActionLoading(true);
+      setError('');
+      await registerForQuiz(quizId, session?.token);
+      await fetchDashboardData();
+      // Keep drawer open, update selected object if needed or close it
+      const updatedQuiz = publishedQuizzes.find(q => q.id === quizId);
+      setSelectedQuiz(updatedQuiz);
+    } catch (err) {
+      setError(err.data?.detail || 'Failed to register.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMockPayment = async (quizId) => {
+    try {
+      setActionLoading(true);
+      setError('');
+      await processMockPayment(quizId, session?.token);
+      await fetchDashboardData();
+    } catch (err) {
+      setError(err.data?.detail || 'Payment failed.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
   };
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setProfileImage(URL.createObjectURL(file));
+  };
+
+  const linePoints = '0,52 34,44 68,48 102,28 136,34 170,18 204,24 238,12';
 
   useEffect(() => {
     localStorage.setItem('quizverse-theme', theme);
@@ -209,7 +225,7 @@ function DashboardPage() {
 
             <div className="profile-copy">
               <span className="module-kicker">Student Identity</span>
-              <h2>{student.name} Sharma</h2>
+              <h2>{student.name}</h2>
               <p>{student.school} {SYMBOLS.dot} {student.branch} {SYMBOLS.dot} {student.year}</p>
               <div className="profile-status-row">
                 <span>{student.status}</span>
@@ -224,14 +240,30 @@ function DashboardPage() {
 
           <article className="event-hero tilt-card">
             <div className="event-copy">
-              <span className="event-status">Registration Opens Tomorrow</span>
-              <h2>AI Battle Week</h2>
-              <p>Inter-School Qualifiers are preparing your next competition window.</p>
-              <div className="hero-chips">
-                <span>Briefing Mode</span>
-                <span>Payment Clear</span>
-                <span>Seat Queue Ready</span>
-              </div>
+              <span className="event-status">Active Quizzes</span>
+              <h2>Available Events</h2>
+              <p>Select a published event to view details and register.</p>
+              
+              {loading ? (
+                <div className="hero-chips"><span>Initializing arena scanner...</span></div>
+              ) : publishedQuizzes.length === 0 ? (
+                <p style={{marginTop: '1rem', color: 'rgba(255,255,255,0.7)', fontStyle: 'italic'}}>
+                  No competition windows are currently open.<br/>
+                  Await the next arena activation.
+                </p>
+              ) : (
+                <div className="hero-chips">
+                  {publishedQuizzes.map(quiz => (
+                    <button 
+                      key={quiz.id} 
+                      className="dash-chip-btn" 
+                      onClick={() => setSelectedQuiz(quiz)}
+                    >
+                      {quiz.title} ({quiz.registered_count} joined)
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="event-visual-stack" aria-hidden="true">
@@ -248,11 +280,8 @@ function DashboardPage() {
               <span>{SYMBOLS.circle}</span>
               <h2>Qualification Rate</h2>
             </div>
-            <div className="radial-widget" style={{ '--progress': 82 }}>
-              <div>
-                <strong>82%</strong>
-                <span>Ready</span>
-              </div>
+            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+              Performance analytics unlock after first completed quiz.
             </div>
           </article>
 
@@ -261,13 +290,8 @@ function DashboardPage() {
               <span>{SYMBOLS.diamond}</span>
               <h2>Quiz Accuracy</h2>
             </div>
-            <svg className="line-graph" viewBox="0 0 238 70" role="img" aria-label="Quiz accuracy trend">
-              <path className="graph-fill" d={`${linePoints} 238,70 0,70 Z`} />
-              <polyline points={linePoints} />
-            </svg>
-            <div className="graph-meta">
-              <strong>86%</strong>
-              <span>Average accuracy</span>
+            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+              Accuracy tracking activates once participation begins.
             </div>
           </article>
 
@@ -276,12 +300,8 @@ function DashboardPage() {
               <span>{SYMBOLS.square}</span>
               <h2>Rounds Cleared</h2>
             </div>
-            <div className="segment-tracker" aria-label="Rounds cleared tracker">
-              <span className="cleared">Q</span>
-              <span className="cleared">R1</span>
-              <span className="cleared">R2</span>
-              <span className="active">R3</span>
-              <span>Final</span>
+            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+              No competition rounds completed yet.
             </div>
           </article>
         </section>
@@ -294,24 +314,30 @@ function DashboardPage() {
             </div>
 
             <div className="registered-list">
-              {registeredQuizzes.map((quiz) => (
-                <button
-                  className={`registered-card registered-${quiz.tone}`}
-                  key={quiz.title}
-                  type="button"
-                  onClick={() => setSelectedQuiz(quiz)}
-                >
-                  <div>
-                    <h3>{quiz.title}</h3>
-                    <p>{quiz.meta}</p>
-                  </div>
-                  <div className="registered-status">
-                    <span>{SYMBOLS.check} {quiz.status}</span>
-                    <small>{quiz.payment}</small>
-                    <em>{quiz.round}</em>
-                  </div>
-                </button>
-              ))}
+              {loading ? (
+                <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>Scanning participation logs...</p>
+              ) : myRegistrations.length === 0 ? (
+                <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>No participation records found in this sector.</p>
+              ) : (
+                myRegistrations.map((reg) => (
+                  <button
+                    className={`registered-card registered-mint`}
+                    key={reg.id}
+                    type="button"
+                    onClick={() => setSelectedQuiz(reg.quiz_details)}
+                  >
+                    <div>
+                      <h3>{reg.quiz_details?.title}</h3>
+                      <p>{reg.player_id || 'ID Pending'}</p>
+                    </div>
+                    <div className="registered-status">
+                      <span>{SYMBOLS.check} {reg.quiz_details?.status.replace('_', ' ')}</span>
+                      <small>Payment: {reg.payment_status}</small>
+                      <em>Registered: {new Date(reg.registered_at).toLocaleDateString()}</em>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </article>
 
@@ -321,58 +347,90 @@ function DashboardPage() {
               <h2>Match Briefings</h2>
             </div>
             <div className="briefing-stack">
-              {briefings.map((briefing) => (
-                <div key={briefing.label}>
-                  <span>{briefing.label}</span>
-                  <strong>{briefing.value}</strong>
-                </div>
-              ))}
+              <div key="stats1">
+                <span>Total Registrations</span>
+                <strong>{myRegistrations.length}</strong>
+              </div>
+              <div key="stats2">
+                <span>Completed Payments</span>
+                <strong>{myRegistrations.filter(r => r.payment_status === 'paid').length}</strong>
+              </div>
             </div>
           </article>
         </section>
       </section>
 
       <aside className={`quiz-detail-drawer ${selectedQuiz ? 'open' : ''}`} aria-hidden={!selectedQuiz}>
-        {selectedQuiz && (
+        {selectedQuiz && (() => {
+          const registration = myRegistrations.find(r => r.quiz === selectedQuiz.id);
+          
+          return (
           <>
-            <button className="drawer-close" type="button" onClick={() => setSelectedQuiz(null)}>x</button>
+            <button className="drawer-close" type="button" onClick={() => { setSelectedQuiz(null); setError(''); }}>x</button>
             <span className="module-kicker">Quiz Detail</span>
             <h2>{selectedQuiz.title}</h2>
-            <p>{selectedQuiz.description}</p>
+            <p>{selectedQuiz.description || 'No description provided.'}</p>
 
             <div className="drawer-detail-grid">
               <div>
-                <span>Event</span>
-                <strong>{selectedQuiz.meta}</strong>
-              </div>
-              <div>
                 <span>Status</span>
-                <strong>{selectedQuiz.status}</strong>
+                <strong>{selectedQuiz.status.replace('_', ' ').toUpperCase()}</strong>
               </div>
               <div>
-                <span>Date / Time</span>
-                <strong>{selectedQuiz.date}</strong>
+                <span>Date</span>
+                <strong>{selectedQuiz.event_date ? new Date(selectedQuiz.event_date).toLocaleDateString() : 'TBA'}</strong>
               </div>
               <div>
-                <span>Payment</span>
-                <strong>{selectedQuiz.payment}</strong>
+                <span>Fee</span>
+                <strong>{parseFloat(selectedQuiz.registration_fee) === 0 ? 'No Registration Fee' : `₹${selectedQuiz.registration_fee}`}</strong>
+              </div>
+              <div>
+                <span>Seats Left</span>
+                <strong>{selectedQuiz.remaining_seats !== null ? selectedQuiz.remaining_seats : 'Unlimited'}</strong>
               </div>
             </div>
 
-            <div className="drawer-section">
-              <span>Round Structure</span>
-              <p>{selectedQuiz.structure}</p>
+            {error && <div style={{color: 'rgb(255,100,100)', marginTop: '1rem', fontWeight: 'bold'}}>{error}</div>}
+
+            <div className="drawer-section" style={{marginTop: '2rem'}}>
+              {registration ? (
+                <div style={{padding: '1rem', border: '1px solid rgba(var(--dash-mint-rgb), 0.3)', borderRadius: '8px', background: 'rgba(var(--dash-mint-rgb), 0.05)'}}>
+                  <h3 style={{marginTop: 0, color: 'rgb(var(--dash-mint-rgb))'}}>Registration Status</h3>
+                  <p><strong>Payment Status:</strong> {registration.payment_status.toUpperCase()}</p>
+                  <p><strong>Player ID:</strong> {registration.player_id || 'Awaiting Payment'}</p>
+                  
+                  {registration.payment_status === 'pending' && parseFloat(selectedQuiz.registration_fee) > 0 && (
+                    <button 
+                      className="btn-submit" 
+                      style={{marginTop: '1rem', width: '100%'}} 
+                      onClick={() => handleMockPayment(selectedQuiz.id)}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? 'PROCESSING...' : 'COMPLETE MOCK PAYMENT'}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button 
+                  className="btn-submit" 
+                  style={{width: '100%', padding: '1rem', fontSize: '1.1rem'}}
+                  onClick={() => handleRegister(selectedQuiz.id)}
+                  disabled={actionLoading || !selectedQuiz.is_registration_open || selectedQuiz.remaining_seats === 0}
+                >
+                  {actionLoading ? 'REGISTERING...' : 
+                    (!selectedQuiz.is_registration_open ? 'REGISTRATION CLOSED' : 
+                    (selectedQuiz.remaining_seats === 0 ? 'QUIZ FULL' : 'REGISTER FOR QUIZ'))}
+                </button>
+              )}
             </div>
-            <div className="drawer-section">
+
+            <div className="drawer-section" style={{marginTop: '2rem'}}>
               <span>Instructions</span>
-              <p>{selectedQuiz.instructions}</p>
-            </div>
-            <div className="drawer-section">
-              <span>Qualification Details</span>
-              <p>{selectedQuiz.qualification}</p>
+              <p>{selectedQuiz.rules_instructions || 'Review rules carefully.'}</p>
             </div>
           </>
-        )}
+          );
+        })()}
       </aside>
     </main>
   );

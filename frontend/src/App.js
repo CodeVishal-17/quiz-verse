@@ -3,6 +3,8 @@ import LandingPage from './components/LandingPage/LandingPage';
 import LoginPage from './components/LoginPage/LoginPage';
 import RegistrationPage from './components/RegistrationPage/RegistrationPage';
 import DashboardPage from './components/DashboardPage/DashboardPage';
+import AdminDashboardPage from './components/AdminDashboardPage/AdminDashboardPage';
+import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import './App.css';
 
 function App() {
@@ -11,7 +13,22 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegistrationPage />} />
-      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin-dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboardPage />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

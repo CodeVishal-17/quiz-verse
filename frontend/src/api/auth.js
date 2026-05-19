@@ -1,13 +1,14 @@
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
 const AUTH_STORAGE_KEY = 'quizverse_auth';
 
-async function request(path, options) {
+async function request(path, options = {}) {
+  const { headers: optionHeaders, ...restOptions } = options;
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(optionHeaders || {}),
     },
-    ...options,
   });
 
   const data = await response.json().catch(() => ({}));
@@ -33,6 +34,33 @@ export function loginStudent(payload) {
   return request('/users/login/', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export function getCurrentUser(token) {
+  return request('/users/me/', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export function getSchools() {
+  return request('/schools/', {
+    method: 'GET',
+  });
+}
+
+export function getProgramsBySchool(schoolId) {
+  return request(`/programs/?school_id=${schoolId}`, {
+    method: 'GET',
+  });
+}
+
+export function getBranchesByProgram(programId) {
+  return request(`/branches/?program_id=${programId}`, {
+    method: 'GET',
   });
 }
 
