@@ -4,7 +4,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 
 async function request(path, options, tokenParam) {
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
 
@@ -62,19 +62,164 @@ export function getAdminStats(token) {
 }
 
 export function getAdminQuizzes(token) {
-  return request('/quizzes/', { method: 'GET' }, token);
+  return request('/quizzes/admin/', { method: 'GET' }, token);
 }
 
 export function createAdminQuiz(payload, token) {
-  return request('/quizzes/', {
+  return request('/quizzes/admin/', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, token);
 }
 
 export function updateAdminQuiz(id, payload, token) {
-  return request(`/quizzes/${id}/`, {
+  return request(`/quizzes/admin/${id}/`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   }, token);
+}
+
+export function deleteAdminQuiz(id, token) {
+  return request(`/quizzes/admin/${id}/`, { method: 'DELETE' }, token);
+}
+
+// Quiz Attempt Methods
+export function startQuizAttempt(id, token) {
+  return request(`/quizzes/${id}/start/`, { method: 'POST' }, token);
+}
+
+export function getNextQuestion(id, token) {
+  return request(`/quizzes/${id}/next/`, { method: 'GET' }, token);
+}
+
+export function submitQuizAnswer(id, choiceId, timeTaken, token) {
+  return request(`/quizzes/${id}/submit/`, {
+    method: 'POST',
+    body: JSON.stringify({ choice_id: choiceId, time_taken: timeTaken }),
+  }, token);
+}
+
+// Team Methods
+export function getTeams(token) {
+  return request(`/quizzes/teams/`, {}, token);
+}
+
+export function createTeam(payload, token) {
+  return request(`/quizzes/teams/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export function joinTeam(teamId, token) {
+  return request(`/quizzes/teams/${teamId}/join/`, {
+    method: 'POST',
+  }, token);
+}
+
+// ==========================================
+// KBC Live Arena API Endpoints (Student)
+// ==========================================
+
+export function verifyQuizAccess(id, playerId, eventPassword, token) {
+  return request(`/quizzes/${id}/verify-access/`, {
+    method: 'POST',
+    body: JSON.stringify({ player_id: playerId, event_password: eventPassword }),
+  }, token);
+}
+
+export function getQuizLiveState(id, token) {
+  return request(`/quizzes/${id}/live-state/`, { method: 'GET' }, token);
+}
+
+export function submitFFFAnswer(id, choiceId, timeTakenSeconds, token) {
+  return request(`/quizzes/${id}/fff-submit/`, {
+    method: 'POST',
+    body: JSON.stringify({ choice_id: choiceId, time_taken_seconds: timeTakenSeconds }),
+  }, token);
+}
+
+export function getHotseatQuestion(id, token) {
+  return request(`/quizzes/${id}/hotseat-question/`, { method: 'GET' }, token);
+}
+
+export function submitHotseatAnswer(id, choiceId, token) {
+  return request(`/quizzes/${id}/hotseat-submit/`, {
+    method: 'POST',
+    body: JSON.stringify({ choice_id: choiceId }),
+  }, token);
+}
+
+export function triggerHotseatLifeline(id, lifelineType, category = '', token) {
+  return request(`/quizzes/${id}/hotseat-lifeline/`, {
+    method: 'POST',
+    body: JSON.stringify({ lifeline_type: lifelineType, category }),
+  }, token);
+}
+
+export function hotseatWalkAway(id, token) {
+  return request(`/quizzes/${id}/hotseat-walk-away/`, { method: 'POST' }, token);
+}
+
+// ==========================================
+// KBC Live Controller API Endpoints (Admin)
+// ==========================================
+
+export function updateQuizStage(id, stage, token) {
+  return request(`/quizzes/admin/${id}/update_stage/`, {
+    method: 'POST',
+    body: JSON.stringify({ stage }),
+  }, token);
+}
+
+export function setQuizBatches(id, batch_1, batch_2, batch_3, token) {
+  return request(`/quizzes/admin/${id}/set_batches/`, {
+    method: 'POST',
+    body: JSON.stringify({ batch_1, batch_2, batch_3 }),
+  }, token);
+}
+
+export function getFFFResults(id, token) {
+  return request(`/quizzes/admin/${id}/fff_results/`, { method: 'GET' }, token);
+}
+
+export function promoteToHotseat(id, studentId, token) {
+  return request(`/quizzes/admin/${id}/promote_hotseat/`, {
+    method: 'POST',
+    body: JSON.stringify({ student_id: studentId }),
+  }, token);
+}
+
+export function getPrelimScores(id, token) {
+  return request(`/quizzes/admin/${id}/prelim_scores/`, { method: 'GET' }, token);
+}
+
+export function getEnrolledStudents(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/enrolled_students/`, { method: 'GET' }, token);
+}
+
+export function enrollStudentManual(quizId, payload, token) {
+  return request(`/quizzes/admin/${quizId}/enroll_student_manual/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+export function bulkEnrollStudents(quizId, file, token) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request(`/quizzes/admin/${quizId}/bulk_enroll_students/`, {
+    method: 'POST',
+    body: formData,
+  }, token);
+}
+
+export async function downloadEnrollmentTemplate(token) {
+  const t = token || getAuthSession()?.token;
+  const res = await fetch(`${API_BASE_URL}/quizzes/admin/download_enrollment_template/`, {
+    method: 'GET',
+    headers: t ? { 'Authorization': `Bearer ${t}` } : {},
+  });
+  if (!res.ok) throw new Error('Failed to download student enrollment template');
+  return res.blob();
 }

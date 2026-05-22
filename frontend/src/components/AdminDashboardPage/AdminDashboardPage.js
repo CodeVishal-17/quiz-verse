@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAuthSession, getSchools, getProgramsBySchool, getBranchesByProgram } from '../../api/auth';
-import { getAdminQuizzes, updateAdminQuiz, createAdminQuiz, getAdminStats } from '../../api/quizzes';
+import {
+  getAdminQuizzes,
+  updateAdminQuiz,
+  createAdminQuiz,
+  getAdminStats,
+  deleteAdminQuiz,
+  updateQuizStage,
+  setQuizBatches,
+  getFFFResults,
+  promoteToHotseat,
+  getPrelimScores,
+  getQuizDetails,
+  getQuizLiveState,
+  getEnrolledStudents,
+  enrollStudentManual,
+  bulkEnrollStudents,
+  downloadEnrollmentTemplate
+} from '../../api/quizzes';
 import './AdminDashboardPage.css';
 
 const SYMBOLS = {
@@ -32,6 +49,7 @@ function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const [showModal, setShowModal] = useState(false);
+  const [editingQuizId, setEditingQuizId] = useState(null);
   const [formData, setFormData] = useState({
     title: '', description: '', rules_instructions: '', 
     event_date: '', event_time: '',
@@ -59,9 +77,286 @@ function AdminDashboardPage() {
   const navigation = [
     { label: 'Overview', symbol: SYMBOLS.square },
     { label: 'Manage Quizzes', symbol: SYMBOLS.quizzes },
+    { label: 'Live KBC Controller', symbol: SYMBOLS.sun },
     { label: 'Manage Students', symbol: SYMBOLS.users },
     { label: 'System Settings', symbol: SYMBOLS.gear },
   ];
+
+  // KBC Controller States
+  const [selectedKbcQuizId, setSelectedKbcQuizId] = useState(null);
+  const [kbcQuizDetail, setKbcQuizDetail] = useState(null);
+  const [kbcLiveState, setKbcLiveState] = useState(null);
+  const [prelimScoresList, setPrelimScoresList] = useState([]);
+  const [fffResultsData, setFffResultsData] = useState(null);
+  const [kbcLoading, setKbcLoading] = useState(false);
+  const [batch1Input, setBatch1Input] = useState('');
+  const [batch2Input, setBatch2Input] = useState('');
+  const [batch3Input, setBatch3Input] = useState('');
+
+  // Manage Students States
+  const [selectedEnrollQuizId, setSelectedEnrollQuizId] = useState('');
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
+  const [enrollForm, setEnrollForm] = useState({ fullName: '', email: '', collegeId: '', paymentStatus: 'paid' });
+  const [enrollLoading, setEnrollLoading] = useState(false);
+  const [enrollFile, setEnrollFile] = useState(null);
+
+  const fetchEnrolledStudents = async (quizId) => {
+    if (!quizId) {
+      setEnrolledStudents([]);
+      return;
+    }
+    try {
+      setEnrollLoading(true);
+      const data = await getEnrolledStudents(quizId, session?.token);
+      setEnrolledStudents(data || []);
+    } catch (err) {
+      console.error("Error fetching enrolled students:", err);
+      alert(err.message || 'Failed to fetch enrolled students');
+    } finally {
+      setEnrollLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Manage Students' && selectedEnrollQuizId) {
+      fetchEnrolledStudents(selectedEnrollQuizId);
+    }
+  }, [activeTab, selectedEnrollQuizId]);
+
+  useEffect(() => {
+    if (activeTab === 'Manage Students' && quizzes.length > 0 && !selectedEnrollQuizId) {
+      setSelectedEnrollQuizId(quizzes[0].id);
+    }
+  }, [activeTab, quizzes]);
+
+  const handleEnrollManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedEnrollQuizId) {
+      alert('Please select a quiz first.');
+      return;
+    }
+    try {
+      setEnrollLoading(true);
+      const payload = {
+        full_name: enrollForm.fullName,
+        email: enrollForm.email,
+        college_id: enrollForm.collegeId,
+        payment_status: enrollForm.paymentStatus
+      };
+      const res = await enrollStudentManual(selectedEnrollQuizId, payload, session?.token);
+      alert(res.detail || 'Student enrolled successfully!');
+      setEnrollForm({ fullName: '', email: '', collegeId: '', paymentStatus: 'paid' });
+      fetchEnrolledStudents(selectedEnrollQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to enroll student manually');
+    } finally {
+      setEnrollLoading(false);
+    }
+  };
+
+  const handleBulkEnrollSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedEnrollQuizId) {
+      alert('Please select a quiz first.');
+      return;
+    }
+    if (!enrollFile) {
+      alert('Please select a CSV or XLSX file first.');
+      return;
+    }
+    try {
+      setEnrollLoading(true);
+      const res = await bulkEnrollStudents(selectedEnrollQuizId, enrollFile, session?.token);
+      alert(res.detail || 'Bulk enrollment completed!');
+      setEnrollFile(null);
+      const fileInput = document.getElementById('bulk-enroll-file-input');
+      if (fileInput) fileInput.value = '';
+      fetchEnrolledStudents(selectedEnrollQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to bulk enroll students');
+    } finally {
+      setEnrollLoading(false);
+    }
+  };
+
+  const handleDownloadEnrollmentTemplate = async () => {
+    try {
+      setEnrollLoading(true);
+      const blob = await downloadEnrollmentTemplate(session?.token);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'student_enrollment_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      alert(err.message || 'Failed to download student enrollment template');
+    } finally {
+      setEnrollLoading(false);
+    }
+  };
+
+  const KBC_STAGES = [
+    { value: 'regular', label: '1. Preliminary Quiz' },
+    { value: 'batch_selection', label: '2. Batch Configuration' },
+    { value: 'fff_batch_1', label: '3. FFF Batch 1' },
+    { value: 'hotseat_batch_1', label: '4. Hotseat Batch 1' },
+    { value: 'fff_batch_2', label: '5. FFF Batch 2' },
+    { value: 'hotseat_batch_2', label: '6. Hotseat Batch 2' },
+    { value: 'fff_batch_3', label: '7. FFF Batch 3' },
+    { value: 'hotseat_batch_3', label: '8. Hotseat Batch 3' },
+    { value: 'completed', label: '9. Event Completed' }
+  ];
+
+  const KBC_LADDER = [
+    { q: 15, val: '₹10,000,000', jackpot: true },
+    { q: 14, val: '₹5,000,000' },
+    { q: 13, val: '₹2,500,000' },
+    { q: 12, val: '₹1,250,000' },
+    { q: 11, val: '₹640,000' },
+    { q: 10, val: '₹320,000', checkpoint: true },
+    { q: 9, val: '₹160,000' },
+    { q: 8, val: '₹80,000' },
+    { q: 7, val: '₹40,000' },
+    { q: 6, val: '₹20,000' },
+    { q: 5, val: '₹10,000', checkpoint: true },
+    { q: 4, val: '₹5,000' },
+    { q: 3, val: '₹3,000' },
+    { q: 2, val: '₹2,000' },
+    { q: 1, val: '₹1,000' }
+  ];
+
+  const fetchKbcControllerData = async (quizId) => {
+    if (!quizId) return;
+    try {
+      const token = session?.token;
+      const detail = await getQuizDetails(quizId, token);
+      setKbcQuizDetail(detail);
+
+      // Fetch live-state (for hotseat attempt info)
+      try {
+        const liveState = await getQuizLiveState(quizId, token);
+        setKbcLiveState(liveState);
+      } catch (e) {
+        console.error("Error fetching KBC live state:", e);
+      }
+
+      // Fetch prelim scores
+      try {
+        const scores = await getPrelimScores(quizId, token);
+        setPrelimScoresList(scores);
+      } catch (e) {
+        console.error("Error fetching prelim scores:", e);
+      }
+
+      // Fetch FFF results if in FFF stage or Hotseat stage
+      const stage = detail.current_stage;
+      if (stage.startsWith('fff_') || stage.startsWith('hotseat_')) {
+        try {
+          const fffData = await getFFFResults(quizId, token);
+          setFffResultsData(fffData);
+        } catch (e) {
+          console.error("Error fetching FFF results:", e);
+          setFffResultsData(null);
+        }
+      } else {
+        setFffResultsData(null);
+      }
+    } catch (err) {
+      console.error("Error fetching KBC controller data:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Live KBC Controller' && selectedKbcQuizId) {
+      // Fetch immediately
+      fetchKbcControllerData(selectedKbcQuizId);
+
+      // Poll every 3 seconds
+      const interval = setInterval(() => {
+        fetchKbcControllerData(selectedKbcQuizId);
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, selectedKbcQuizId]);
+
+  useEffect(() => {
+    if (kbcQuizDetail) {
+      setBatch1Input(kbcQuizDetail.batch_1_players?.join(', ') || '');
+      setBatch2Input(kbcQuizDetail.batch_2_players?.join(', ') || '');
+      setBatch3Input(kbcQuizDetail.batch_3_players?.join(', ') || '');
+    }
+  }, [kbcQuizDetail?.id]);
+
+  const handleUpdateStage = async (stage) => {
+    try {
+      setKbcLoading(true);
+      await updateQuizStage(selectedKbcQuizId, stage, session?.token);
+      await fetchKbcControllerData(selectedKbcQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to update stage');
+    } finally {
+      setKbcLoading(false);
+    }
+  };
+
+  const handleAutoGenerateBatches = async () => {
+    try {
+      setKbcLoading(true);
+      await setQuizBatches(selectedKbcQuizId, [], [], [], session?.token);
+      const data = await getQuizDetails(selectedKbcQuizId, session?.token);
+      setKbcQuizDetail(data);
+      setBatch1Input(data.batch_1_players?.join(', ') || '');
+      setBatch2Input(data.batch_2_players?.join(', ') || '');
+      setBatch3Input(data.batch_3_players?.join(', ') || '');
+      alert('Batches automatically configured based on top 30 preliminary scorers.');
+    } catch (err) {
+      alert(err.message || 'Failed to auto-generate batches');
+    } finally {
+      setKbcLoading(false);
+    }
+  };
+
+  const handleSaveBatches = async () => {
+    try {
+      setKbcLoading(true);
+      const parseCsv = (str) => str.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
+      const b1 = parseCsv(batch1Input);
+      const b2 = parseCsv(batch2Input);
+      const b3 = parseCsv(batch3Input);
+      
+      await setQuizBatches(selectedKbcQuizId, b1, b2, b3, session?.token);
+      alert('Batches saved successfully.');
+      await fetchKbcControllerData(selectedKbcQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to save batches');
+    } finally {
+      setKbcLoading(false);
+    }
+  };
+
+  const handlePromoteToHotseat = async (studentId) => {
+    try {
+      setKbcLoading(true);
+      await promoteToHotseat(selectedKbcQuizId, studentId, session?.token);
+      alert('Student successfully promoted to Hotseat!');
+      await fetchKbcControllerData(selectedKbcQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to promote student');
+    } finally {
+      setKbcLoading(false);
+    }
+  };
+
+  const getNextStageValue = (current) => {
+    const idx = KBC_STAGES.findIndex(s => s.value === current);
+    if (idx !== -1 && idx < KBC_STAGES.length - 1) {
+      return KBC_STAGES[idx + 1].value;
+    }
+    return null;
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -119,6 +414,119 @@ function AdminDashboardPage() {
     }
   };
 
+  const handleCreateNewClick = () => {
+    setEditingQuizId(null);
+    setFormData({
+      title: '', description: '', rules_instructions: '', 
+      event_date: '', event_time: '',
+      registration_open_date: '', registration_open_time: '', 
+      registration_close_date: '', registration_close_time: '', 
+      max_participants: '100',
+      registration_fee: '0', visible_to_students: false, is_registration_open: false,
+      require_eligibility: false,
+      eligibility_school: '',
+      eligibility_programs: [],
+      eligibility_branches: []
+    });
+    setShowModal(true);
+  };
+
+  const handleEditClick = (quiz) => {
+    setEditingQuizId(quiz.id);
+    
+    const splitDateTime = (isoString) => {
+      if (!isoString) return { date: '', time: '' };
+      try {
+        const d = new Date(isoString);
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
+        return {
+          date: local.split('T')[0],
+          time: local.split('T')[1].substring(0,5)
+        };
+      } catch(e) { return { date: '', time: '' }; }
+    }
+
+    const event = splitDateTime(quiz.event_date);
+    const regOpen = splitDateTime(quiz.registration_open_date);
+    const regClose = splitDateTime(quiz.registration_close_date);
+
+    setFormData({
+      title: quiz.title || '',
+      description: quiz.description || '',
+      rules_instructions: quiz.rules_instructions || '',
+      event_date: event.date,
+      event_time: event.time,
+      registration_open_date: regOpen.date,
+      registration_open_time: regOpen.time,
+      registration_close_date: regClose.date,
+      registration_close_time: regClose.time,
+      max_participants: quiz.max_participants ? quiz.max_participants.toString() : '',
+      registration_fee: quiz.registration_fee ? quiz.registration_fee.toString() : '0',
+      visible_to_students: quiz.visible_to_students || false,
+      is_registration_open: quiz.is_registration_open || false,
+      require_eligibility: !!(quiz.allowed_schools?.length || quiz.allowed_programs?.length || quiz.allowed_branches?.length),
+      eligibility_school: quiz.allowed_schools?.[0] || '',
+      eligibility_programs: quiz.allowed_programs || [],
+      eligibility_branches: quiz.allowed_branches || []
+    });
+    
+    setShowModal(true);
+  };
+
+  const handleDeleteClick = async (quizId) => {
+    if (window.confirm("Are you sure you want to completely delete this quiz? This action cannot be undone.")) {
+      try {
+        await deleteAdminQuiz(quizId, session?.token);
+        await fetchDashboardData();
+        alert('Quiz deleted successfully.');
+      } catch (err) {
+        alert('Failed to delete quiz.');
+      }
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/download_template/`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${session?.token}` },
+      });
+      
+      if (!res.ok) throw new Error('Failed to download template');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'quiz_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUploadExcel = async (quizId, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${quizId}/upload_questions/`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.token}` },
+        body: formData
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+      
+      alert(data.detail || 'Questions uploaded successfully!');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const submitQuiz = async (isDraft) => {
     try {
       setSubmitLoading(true);
@@ -132,21 +540,21 @@ function AdminDashboardPage() {
       if (payload.event_date && payload.event_time) {
         payload.event_date = `${payload.event_date}T${payload.event_time}:00`;
       } else {
-        delete payload.event_date;
+        payload.event_date = null;
       }
       delete payload.event_time;
 
       if (payload.registration_open_date && payload.registration_open_time) {
         payload.registration_open_date = `${payload.registration_open_date}T${payload.registration_open_time}:00`;
       } else {
-        delete payload.registration_open_date;
+        payload.registration_open_date = null;
       }
       delete payload.registration_open_time;
 
       if (payload.registration_close_date && payload.registration_close_time) {
         payload.registration_close_date = `${payload.registration_close_date}T${payload.registration_close_time}:00`;
       } else {
-        delete payload.registration_close_date;
+        payload.registration_close_date = null;
       }
       delete payload.registration_close_time;
       
@@ -154,37 +562,37 @@ function AdminDashboardPage() {
       payload.registration_fee = payload.registration_fee ? parseFloat(payload.registration_fee) : 0.00;
       
       if (!payload.require_eligibility) {
-        payload.eligibility_school = null;
-        payload.eligibility_programs = [];
-        payload.eligibility_branches = [];
+        payload.allowed_schools = [];
+        payload.allowed_programs = [];
+        payload.allowed_branches = [];
+      } else {
+        payload.allowed_schools = payload.eligibility_school ? [payload.eligibility_school] : [];
+        payload.allowed_programs = payload.eligibility_programs || [];
+        payload.allowed_branches = payload.eligibility_branches || [];
       }
       delete payload.require_eligibility;
+      delete payload.eligibility_school;
+      delete payload.eligibility_programs;
+      delete payload.eligibility_branches;
 
-      // Remove optional empty fields to bypass strict backend format validations
+      // Remove optional empty string fields to bypass strict backend format validations, but preserve nulls
       Object.keys(payload).forEach(key => {
         if (payload[key] === '') {
-          delete payload[key];
+          payload[key] = null;
         }
       });
       
       console.log('Sending payload:', payload);
 
-      await createAdminQuiz(payload, session?.token);
-      await fetchDashboardData();
-      alert(isDraft ? 'Draft saved successfully!' : 'Quiz created successfully!');
+      if (editingQuizId) {
+        await updateAdminQuiz(editingQuizId, payload, session?.token);
+        alert('Quiz updated successfully!');
+      } else {
+        await createAdminQuiz(payload, session?.token);
+        alert(isDraft ? 'Draft saved successfully!' : 'Quiz created successfully!');
+      }
       
-      setFormData({
-        title: '', description: '', rules_instructions: '', 
-        event_date: '', event_time: '',
-        registration_open_date: '', registration_open_time: '', 
-        registration_close_date: '', registration_close_time: '', 
-        max_participants: '100',
-        registration_fee: '0', visible_to_students: false, is_registration_open: false,
-        require_eligibility: false,
-        eligibility_school: '',
-        eligibility_programs: [],
-        eligibility_branches: []
-      });
+      await fetchDashboardData();
       setShowModal(false);
     } catch (err) {
       console.error('Quiz Creation Error:', err, err.data);
@@ -350,13 +758,22 @@ function AdminDashboardPage() {
                   <span className="overview-status">Quiz Management</span>
                   <h2 style={{margin: 0}}>Active Facilities</h2>
                 </div>
-                <button 
-                  className="dash-chip-btn" 
-                  onClick={() => setShowModal(true)}
-                  style={{background: 'rgb(var(--dash-mint-rgb))', color: 'black', border: 'none', fontWeight: 'bold', padding: '0.8rem 1.5rem', fontSize: '1rem', cursor: 'pointer'}}
-                >
-                  + CREATE NEW QUIZ
-                </button>
+                <div style={{display: 'flex', gap: '1rem'}}>
+                  <button 
+                    className="dash-chip-btn" 
+                    onClick={handleDownloadTemplate}
+                    style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', cursor: 'pointer', padding: '0.8rem 1.5rem', fontSize: '1rem', borderRadius: '4px'}}
+                  >
+                    DOWNLOAD EXCEL TEMPLATE
+                  </button>
+                  <button 
+                    className="dash-chip-btn" 
+                    onClick={handleCreateNewClick}
+                    style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 1.5rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}
+                  >
+                    + CREATE NEW QUIZ
+                  </button>
+                </div>
               </div>
               
               <div style={{display: 'flex', gap: '2rem', flexDirection: 'column'}}>
@@ -370,10 +787,10 @@ function AdminDashboardPage() {
                   ) : (
                     <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                       {quizzes.map(quiz => (
-                        <div key={quiz.id} style={{padding: '1rem', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div key={quiz.id} className="admin-quiz-list-item">
                           <div>
-                            <h3 style={{margin: '0 0 0.5rem 0', color: 'white'}}>{quiz.title} {quiz.is_archived && '(ARCHIVED)'}</h3>
-                            <div style={{display: 'flex', gap: '1rem', fontSize: '0.9rem', color: 'rgba(255,255,255,0.6)'}}>
+                            <h3>{quiz.title} {quiz.is_archived && '(ARCHIVED)'}</h3>
+                            <div className="admin-quiz-list-meta">
                               <span>Status: {quiz.status.replace('_', ' ').toUpperCase()}</span>
                               <span>Registered: {quiz.registered_count}</span>
                               {quiz.event_date && <span>Date: {new Date(quiz.event_date).toLocaleDateString()}</span>}
@@ -382,17 +799,55 @@ function AdminDashboardPage() {
                           <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '300px'}}>
                             <button 
                               className="dash-chip-btn" 
+                              onClick={() => handleEditClick(quiz)}
+                              style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)'}}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              className="dash-chip-btn" 
+                              onClick={() => handleDeleteClick(quiz.id)}
+                              style={{borderColor: 'rgba(255,80,80,0.4)', color: 'rgb(255,80,80)'}}
+                            >
+                              Delete
+                            </button>
+                            <label className="dash-chip-btn" style={{borderColor: 'rgba(255, 255, 255, 0.4)', color: 'var(--dash-text)', cursor: 'pointer'}}>
+                              Upload Excel
+                              <input 
+                                type="file" 
+                                accept=".xlsx" 
+                                style={{display: 'none'}} 
+                                onChange={(e) => {
+                                  if (e.target.files[0]) {
+                                    handleUploadExcel(quiz.id, e.target.files[0]);
+                                    e.target.value = null; // reset
+                                  }
+                                }} 
+                              />
+                            </label>
+                            <button 
+                              className="dash-chip-btn" 
                               onClick={() => toggleQuizSetting(quiz.id, 'visible_to_students', quiz.visible_to_students)}
-                              style={{borderColor: quiz.visible_to_students ? 'rgb(var(--dash-mint-rgb))' : 'rgba(255,255,255,0.2)'}}
+                              style={{borderColor: quiz.visible_to_students ? 'rgb(var(--admin-mint-rgb))' : 'var(--admin-border)'}}
                             >
                               {quiz.visible_to_students ? 'Published' : 'Hidden'}
                             </button>
                             <button 
                               className="dash-chip-btn" 
                               onClick={() => toggleQuizSetting(quiz.id, 'is_registration_open', quiz.is_registration_open)}
-                              style={{borderColor: quiz.is_registration_open ? 'rgb(var(--dash-cyan-rgb))' : 'rgba(255,255,255,0.2)'}}
+                              style={{borderColor: quiz.is_registration_open ? 'rgb(var(--admin-cyan-rgb))' : 'var(--admin-border)'}}
                             >
                               {quiz.is_registration_open ? 'Reg Open' : 'Reg Closed'}
+                            </button>
+                            <button 
+                              className="dash-chip-btn" 
+                              onClick={() => {
+                                setSelectedKbcQuizId(quiz.id);
+                                setActiveTab('Live KBC Controller');
+                              }}
+                              style={{borderColor: 'rgba(255, 215, 0, 0.6)', color: '#ffd700'}}
+                            >
+                              KBC Console
                             </button>
                             <button 
                               className="dash-chip-btn" 
@@ -411,6 +866,682 @@ function AdminDashboardPage() {
             </div>
           </section>
         )}
+
+        {activeTab === 'Live KBC Controller' && (
+          <section className="admin-overview-hero tilt-card kbc-controller-container">
+            {!selectedKbcQuizId ? (
+              <div className="kbc-quiz-selector">
+                <span className="overview-status">KBC Event Command Center</span>
+                <h2>Select a Live Event to Control</h2>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1.2rem', marginTop: '2rem'}}>
+                  {quizzes.map(quiz => (
+                    <div key={quiz.id} className="admin-quiz-list-item kbc-selector-item">
+                      <div>
+                        <h3>{quiz.title}</h3>
+                        <div className="admin-quiz-list-meta">
+                          <span>Active Stage: <strong style={{color: '#ffd700'}}>{quiz.current_stage?.replace('_', ' ').toUpperCase() || 'REGULAR'}</strong></span>
+                          <span>Registered: {quiz.registered_count}</span>
+                        </div>
+                      </div>
+                      <button 
+                        className="dash-chip-btn kbc-control-launch-btn"
+                        onClick={() => setSelectedKbcQuizId(quiz.id)}
+                        style={{borderColor: '#ffd700', color: '#ffd700'}}
+                      >
+                        CONTROL LIVE EVENT
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="kbc-active-console">
+                {/* Header */}
+                <div className="kbc-console-header">
+                  <div>
+                    <button className="kbc-back-btn" onClick={() => { setSelectedKbcQuizId(null); setKbcQuizDetail(null); setKbcLiveState(null); }}>
+                      &larr; Exit Console
+                    </button>
+                    <h2>Live KBC Console: <span style={{color: '#ffd700'}}>{kbcQuizDetail?.title}</span></h2>
+                  </div>
+                  <div className="kbc-console-status">
+                    <span className="kbc-status-pill">
+                      <span className="pulse-dot"></span>
+                      SYSTEM LIVE (Polling active)
+                    </span>
+                    <button className="kbc-refresh-btn" onClick={() => fetchKbcControllerData(selectedKbcQuizId)}>
+                      Force Sync
+                    </button>
+                  </div>
+                </div>
+
+                <div className="kbc-console-grid">
+                  {/* Left Column: Stage Controller & Winnings */}
+                  <div className="kbc-console-left">
+                    <div className="kbc-panel stage-controller-panel">
+                      <h3>Stage Controller</h3>
+                      <p className="panel-subtitle">Advance/Select active event stage</p>
+
+                      {/* Advance Stage Button */}
+                      {getNextStageValue(kbcQuizDetail?.current_stage) && (
+                        <button 
+                          className="kbc-advance-btn" 
+                          disabled={kbcLoading}
+                          onClick={() => handleUpdateStage(getNextStageValue(kbcQuizDetail?.current_stage))}
+                        >
+                          ADVANCE TO {getNextStageValue(kbcQuizDetail?.current_stage).replace('_', ' ').toUpperCase()} &rarr;
+                        </button>
+                      )}
+
+                      <div className="kbc-stages-timeline">
+                        {KBC_STAGES.map(stage => {
+                          const isActive = kbcQuizDetail?.current_stage === stage.value;
+                          return (
+                            <button
+                              key={stage.value}
+                              className={`kbc-timeline-item ${isActive ? 'active' : ''}`}
+                              onClick={() => handleUpdateStage(stage.value)}
+                              disabled={kbcLoading}
+                            >
+                              <span className="timeline-dot"></span>
+                              <span className="timeline-label">{stage.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Hotseat Info Panel */}
+                    <div className="kbc-panel hotseat-info-panel">
+                      <h3>Active Hotseat Player</h3>
+                      {kbcLiveState?.hotseat_attempt ? (
+                        <div className="hotseat-metrics">
+                          <div className="metric-row">
+                            <span className="metric-lbl">Contender:</span>
+                            <span className="metric-val text-gold">{kbcLiveState.hotseat_attempt.student_name}</span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-lbl">Player ID:</span>
+                            <span className="metric-val">{kbcLiveState.hotseat_attempt.player_id}</span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-lbl">Level Winnings:</span>
+                            <span className="metric-val text-cyan">{KBC_LADDER[15 - kbcLiveState.hotseat_attempt.current_question_index]?.val || '₹0'}</span>
+                          </div>
+                          <div className="metric-row">
+                            <span className="metric-lbl">Status:</span>
+                            <span className="metric-val text-green">{kbcLiveState.hotseat_attempt.status?.toUpperCase()}</span>
+                          </div>
+
+                          <div className="lifelines-status">
+                            <h4>Lifelines Status</h4>
+                            <div className="lifelines-row">
+                              <div className={`lifeline-badge ${kbcLiveState.hotseat_attempt.lifeline_5050_used ? 'used' : 'ready'}`}>
+                                50:50 {kbcLiveState.hotseat_attempt.lifeline_5050_used ? '❌' : '✅'}
+                              </div>
+                              <div className={`lifeline-badge ${kbcLiveState.hotseat_attempt.lifeline_poll_used ? 'used' : 'ready'}`}>
+                                Poll {kbcLiveState.hotseat_attempt.lifeline_poll_used ? '❌' : '✅'}
+                              </div>
+                              <div className={`lifeline-badge ${kbcLiveState.hotseat_attempt.lifeline_switch_used ? 'used' : 'ready'}`}>
+                                Switch {kbcLiveState.hotseat_attempt.lifeline_switch_used ? '❌' : '✅'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="no-active-msg">No active contestant in hotseat currently.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Middle Column: Dynamic Context Screen */}
+                  <div className="kbc-console-mid">
+                    {/* Preliminary Stage details */}
+                    {kbcQuizDetail?.current_stage === 'regular' && (
+                      <div className="kbc-panel context-panel">
+                        <h3>Preliminary Leaderboard</h3>
+                        <p className="panel-subtitle">Students currently playing standard preliminary round</p>
+                        <div className="scores-table-container">
+                          <table className="kbc-table">
+                            <thead>
+                              <tr>
+                                <th>Rank</th>
+                                <th>Name</th>
+                                <th>Player ID</th>
+                                <th>Score</th>
+                                <th>Time Taken</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {prelimScoresList.length === 0 ? (
+                                <tr><td colSpan="5" className="text-center">No submissions yet. Waiting for students to finish...</td></tr>
+                              ) : (
+                                prelimScoresList.map(score => (
+                                  <tr key={score.student_id}>
+                                    <td>#{score.rank}</td>
+                                    <td className="text-gold">{score.student_name}</td>
+                                    <td>{score.player_id}</td>
+                                    <td className="text-cyan font-bold">{score.score}</td>
+                                    <td>{score.time_taken ? `${score.time_taken.toFixed(1)}s` : '-'}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Batch Selection Stage */}
+                    {kbcQuizDetail?.current_stage === 'batch_selection' && (
+                      <div className="kbc-panel context-panel">
+                        <h3>Batch Configuration</h3>
+                        <p className="panel-subtitle">Set FFF contestants. Group top 30 preliminary scorers into 3 batches of 10.</p>
+                        
+                        <div className="batch-actions-bar">
+                          <button className="kbc-secondary-btn" onClick={handleAutoGenerateBatches} disabled={kbcLoading}>
+                            ⚡ Auto-Generate Batches
+                          </button>
+                          <button className="kbc-save-btn" onClick={handleSaveBatches} disabled={kbcLoading}>
+                            💾 Lock & Save Batches
+                          </button>
+                        </div>
+
+                        <div className="batches-grid">
+                          <div className="batch-input-card">
+                            <h4>Batch 1 (FFF Round 1)</h4>
+                            <textarea 
+                              className="batch-input-field" 
+                              value={batch1Input} 
+                              onChange={e => setBatch1Input(e.target.value)}
+                              placeholder="Comma separated User IDs (e.g. 101, 102, 103)"
+                            />
+                            <span className="batch-count">Count: {batch1Input ? batch1Input.split(',').filter(x => x.trim()).length : 0} / 10</span>
+                          </div>
+
+                          <div className="batch-input-card">
+                            <h4>Batch 2 (FFF Round 2)</h4>
+                            <textarea 
+                              className="batch-input-field" 
+                              value={batch2Input} 
+                              onChange={e => setBatch2Input(e.target.value)}
+                              placeholder="Comma separated User IDs"
+                            />
+                            <span className="batch-count">Count: {batch2Input ? batch2Input.split(',').filter(x => x.trim()).length : 0} / 10</span>
+                          </div>
+
+                          <div className="batch-input-card">
+                            <h4>Batch 3 (FFF Round 3)</h4>
+                            <textarea 
+                              className="batch-input-field" 
+                              value={batch3Input} 
+                              onChange={e => setBatch3Input(e.target.value)}
+                              placeholder="Comma separated User IDs"
+                            />
+                            <span className="batch-count">Count: {batch3Input ? batch3Input.split(',').filter(x => x.trim()).length : 0} / 10</span>
+                          </div>
+                        </div>
+
+                        {/* Top 30 Preliminary list for reference */}
+                        <div style={{marginTop: '2rem'}}>
+                          <h4>Top Preliminary Scorers Reference</h4>
+                          <div className="scores-table-container mini-table">
+                            <table className="kbc-table">
+                              <thead>
+                                <tr>
+                                  <th>Rank</th>
+                                  <th>User ID</th>
+                                  <th>Name</th>
+                                  <th>Player ID</th>
+                                  <th>Score</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {prelimScoresList.map(score => (
+                                  <tr key={score.student_id}>
+                                    <td>#{score.rank}</td>
+                                    <td><strong className="text-cyan">{score.student_id}</strong></td>
+                                    <td className="text-gold">{score.student_name}</td>
+                                    <td>{score.player_id}</td>
+                                    <td>{score.score}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* FFF Stages */}
+                    {kbcQuizDetail?.current_stage.startsWith('fff_') && (
+                      <div className="kbc-panel context-panel">
+                        <h3>FFF Live Standings</h3>
+                        <p className="panel-subtitle">Submissions for active batch in real time. Winner is the fastest correct responder.</p>
+
+                        {fffResultsData?.question && (
+                          <div className="fff-question-box">
+                            <h4>FFF Active Question:</h4>
+                            <p className="fff-question-text">{fffResultsData.question.text}</p>
+                          </div>
+                        )}
+
+                        <div className="fff-standings-table">
+                          <table className="kbc-table">
+                            <thead>
+                              <tr>
+                                <th>Rank</th>
+                                <th>Contender</th>
+                                <th>Player ID</th>
+                                <th>Choice Submitted</th>
+                                <th>Time Taken</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {!fffResultsData?.results || fffResultsData.results.length === 0 ? (
+                                <tr><td colSpan="7" className="text-center">No submissions received yet...</td></tr>
+                              ) : (
+                                fffResultsData.results.map((res, idx) => {
+                                  const isWinner = res.is_correct && idx === 0;
+                                  return (
+                                    <tr key={res.id} className={isWinner ? 'fff-winner-row' : ''}>
+                                      <td>
+                                        {isWinner ? (
+                                          <span className="winner-crown">👑 #1</span>
+                                        ) : (
+                                          `#${idx + 1}`
+                                        )}
+                                      </td>
+                                      <td className="text-gold font-bold">{res.student_name}</td>
+                                      <td>{res.player_id}</td>
+                                      <td className="font-mono text-cyan">{res.selected_choice_text || 'Choice ID: ' + res.selected_choice}</td>
+                                      <td className="text-pink font-mono font-bold">{res.time_taken_seconds?.toFixed(3)}s</td>
+                                      <td>
+                                        {res.is_correct ? (
+                                          <span className="badge-correct">CORRECT</span>
+                                        ) : (
+                                          <span className="badge-incorrect">INCORRECT</span>
+                                        )}
+                                      </td>
+                                      <td>
+                                        <button 
+                                          className="dash-chip-btn kbc-action-btn"
+                                          onClick={() => handlePromoteToHotseat(res.student)}
+                                          disabled={kbcLoading}
+                                          style={{borderColor: '#ffd700', color: '#ffd700'}}
+                                        >
+                                          Promote
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  )
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hotseat Stages */}
+                    {kbcQuizDetail?.current_stage.startsWith('hotseat_') && (
+                      <div className="kbc-panel context-panel">
+                        <h3>Hotseat Round Monitor</h3>
+                        <p className="panel-subtitle">Contender climbing the prize ladder. View choices and correct solutions.</p>
+
+                        {fffResultsData?.question ? (
+                          <div className="hotseat-question-card">
+                            <span className="question-category">Category: {fffResultsData.question.category || 'General'}</span>
+                            <h4 className="hotseat-question-text">{fffResultsData.question.text}</h4>
+                            <div className="hotseat-choices-grid">
+                              {fffResultsData.question.choices?.map(choice => (
+                                <div 
+                                  key={choice.id} 
+                                  className={`hotseat-choice-card ${choice.is_correct ? 'correct' : ''}`}
+                                >
+                                  <span className="choice-lbl">{choice.text}</span>
+                                  {choice.is_correct && <span className="correct-check">✓ CORRECT ANSWER</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="no-active-msg">No active question loaded yet for this Hotseat batch.</p>
+                        )}
+
+                        <div className="hotseat-checkpoint-info">
+                          <h4>Ladder Progress Timeline</h4>
+                          <div className="ladder-horizontal-timeline">
+                            {KBC_LADDER.slice().reverse().map((level) => {
+                              const isActive = kbcLiveState?.hotseat_attempt?.current_question_index === level.q;
+                              const isPassed = kbcLiveState?.hotseat_attempt?.current_question_index > level.q;
+                              return (
+                                <div 
+                                  key={level.q} 
+                                  className={`ladder-lvl ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${level.checkpoint ? 'checkpoint' : ''}`}
+                                >
+                                  <span className="lvl-num font-mono">Q{level.q}</span>
+                                  <span className="lvl-val font-mono">{level.val}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Completed Stage */}
+                    {kbcQuizDetail?.current_stage === 'completed' && (
+                      <div className="kbc-panel context-panel podium-panel">
+                        <h3>Event Concluded</h3>
+                        <p className="panel-subtitle">All hotseat players have finished. Highest score wins.</p>
+
+                        <div className="podium-showcase">
+                          {(() => {
+                            const players = [
+                              { name: kbcQuizDetail.hotseat_player_1_name || 'Contender 1', score: kbcQuizDetail.hotseat_score_1 || 0 },
+                              { name: kbcQuizDetail.hotseat_player_2_name || 'Contender 2', score: kbcQuizDetail.hotseat_score_2 || 0 },
+                              { name: kbcQuizDetail.hotseat_player_3_name || 'Contender 3', score: kbcQuizDetail.hotseat_score_3 || 0 }
+                            ].sort((a,b) => b.score - a.score);
+
+                            return (
+                              <div className="podium-wrapper">
+                                {/* Second Place */}
+                                <div className="podium-column podium-silver">
+                                  <span className="podium-rank">2nd</span>
+                                  <span className="podium-player-name">{players[1]?.name}</span>
+                                  <span className="podium-player-score">₹{players[1]?.score.toLocaleString()}</span>
+                                  <div className="podium-bar silver-bar"></div>
+                                </div>
+
+                                {/* First Place */}
+                                <div className="podium-column podium-gold">
+                                  <span className="podium-crown font-mono">👑</span>
+                                  <span className="podium-rank">1st</span>
+                                  <span className="podium-player-name">{players[0]?.name}</span>
+                                  <span className="podium-player-score">₹{players[0]?.score.toLocaleString()}</span>
+                                  <div className="podium-bar gold-bar"></div>
+                                </div>
+
+                                {/* Third Place */}
+                                <div className="podium-column podium-bronze">
+                                  <span className="podium-rank">3rd</span>
+                                  <span className="podium-player-name">{players[2]?.name}</span>
+                                  <span className="podium-player-score">₹{players[2]?.score.toLocaleString()}</span>
+                                  <div className="podium-bar bronze-bar"></div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: High-contrast Prize Ladder */}
+                  <div className="kbc-console-right">
+                    <div className="kbc-panel prize-ladder-panel">
+                      <h3>Prize Ladder</h3>
+                      <div className="kbc-ladder-grid">
+                        {KBC_LADDER.map(level => {
+                          const isActive = kbcLiveState?.hotseat_attempt?.current_question_index === level.q;
+                          const isPassed = kbcLiveState?.hotseat_attempt?.current_question_index > level.q;
+                          return (
+                            <div 
+                              key={level.q} 
+                              className={`kbc-ladder-row ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${level.checkpoint ? 'checkpoint' : ''} ${level.jackpot ? 'jackpot' : ''}`}
+                            >
+                              <span className="ladder-q-num font-mono">{level.q}</span>
+                              <span className="ladder-q-sym">♦</span>
+                              <span className="ladder-q-val font-mono">{level.val}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'Manage Students' && (
+          <section className="admin-overview-hero tilt-card manage-students-container" style={{ marginTop: '2rem', padding: '2rem' }}>
+            <div className="overview-copy" style={{ width: '100%' }}>
+              <span className="overview-status" style={{ display: 'inline-block', marginBottom: '1rem' }}>
+                Contestant Registration & Profile Facility
+              </span>
+              
+              {/* Quiz Selection Dropdown Header */}
+              <div className="manage-students-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h2 style={{ margin: 0 }}>Manage Enrolled Students</h2>
+                <div className="quiz-selector-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <label htmlFor="student-quiz-select" className="admin-form-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>Active Quiz Sector:</label>
+                  <select
+                    id="student-quiz-select"
+                    className="admin-form-input inline-select"
+                    style={{ minWidth: '250px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)' }}
+                    value={selectedEnrollQuizId}
+                    onChange={(e) => setSelectedEnrollQuizId(e.target.value)}
+                  >
+                    <option value="">-- Choose Quiz Sector --</option>
+                    {quizzes.map((q) => (
+                      <option key={q.id} value={q.id}>
+                        {q.title} ({q.registered_count} Enrolled)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {!selectedEnrollQuizId ? (
+                <div className="no-quiz-selected-state" style={{ textAlign: 'center', padding: '4rem 2rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px dashed var(--admin-border)' }}>
+                  <p className="no-active-msg" style={{ margin: 0, fontSize: '1.1rem', color: 'var(--admin-muted)' }}>
+                    Please select a quiz sector from the dropdown above to manage registrations.
+                  </p>
+                </div>
+              ) : (
+                <div className="students-facility-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '2rem', marginTop: '1rem' }}>
+                  {/* Left Panel: Direct Single Enrollment Form & Bulk Excel Uploader */}
+                  <div className="students-facility-left" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {/* single manual enrollment card */}
+                    <div className="students-panel glass-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--admin-border)' }}>
+                      <h3 style={{ marginTop: 0, color: 'rgb(var(--admin-cyan-rgb))' }}>Single Contestant Manual Form</h3>
+                      <p className="panel-subtitle font-mono" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
+                        Provision profile & credentials instantly
+                      </p>
+                      
+                      <form onSubmit={handleEnrollManualSubmit} className="manual-enroll-form" style={{ display: 'grid', gap: '1.2rem' }}>
+                        <div className="form-group">
+                          <label className="admin-form-label">Full Name</label>
+                          <input
+                            required
+                            type="text"
+                            className="admin-form-input"
+                            placeholder="e.g. Sanjana Prasad"
+                            value={enrollForm.fullName}
+                            onChange={(e) => setEnrollForm({ ...enrollForm, fullName: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="admin-form-label">Email Address</label>
+                          <input
+                            required
+                            type="email"
+                            className="admin-form-input"
+                            placeholder="sanjana@domain.com"
+                            value={enrollForm.email}
+                            onChange={(e) => setEnrollForm({ ...enrollForm, email: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="admin-form-label">College / University ID</label>
+                          <input
+                            required
+                            type="text"
+                            className="admin-form-input"
+                            placeholder="COLLEGE_ID_2026"
+                            value={enrollForm.collegeId}
+                            onChange={(e) => setEnrollForm({ ...enrollForm, collegeId: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="admin-form-label">Mock Payment Status</label>
+                          <select
+                            className="admin-form-input"
+                            value={enrollForm.paymentStatus}
+                            onChange={(e) => setEnrollForm({ ...enrollForm, paymentStatus: e.target.value })}
+                          >
+                            <option value="paid">Paid (Instant Arena Access)</option>
+                            <option value="pending">Pending (Awaiting Mock Payment)</option>
+                          </select>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="dash-chip-btn submit-enroll-btn"
+                          disabled={enrollLoading}
+                          style={{ background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '1rem', cursor: 'pointer', borderRadius: '4px', marginTop: '0.5rem', width: '100%' }}
+                        >
+                          {enrollLoading ? 'PROVISIONING...' : 'ENROLL CONTESTANT 🚀'}
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Bulk Enrollment Card */}
+                    <div className="students-panel glass-card bulk-enroll-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--admin-border)' }}>
+                      <h3 style={{ marginTop: 0, color: 'rgb(var(--admin-pink-rgb))' }}>Bulk Enroll Contestants</h3>
+                      <p className="panel-subtitle" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
+                        Upload student spreadsheet sheet (.csv or .xlsx)
+                      </p>
+                      
+                      <div className="bulk-actions-wrapper" style={{ marginBottom: '1.5rem' }}>
+                        <button
+                          type="button"
+                          className="dash-chip-btn template-download-btn"
+                          onClick={handleDownloadEnrollmentTemplate}
+                          disabled={enrollLoading}
+                          style={{ background: 'transparent', borderColor: 'var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem 1.2rem', fontSize: '0.85rem', borderRadius: '4px', cursor: 'pointer', width: '100%' }}
+                        >
+                          📥 DOWNLOAD STUDENT TEMPLATE (.XLSX)
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleBulkEnrollSubmit} className="bulk-enroll-form" style={{ display: 'grid', gap: '1.2rem' }}>
+                        <div className="file-uploader-box" style={{ border: '2px dashed var(--admin-border)', padding: '2rem 1rem', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', background: 'rgba(0,0,0,0.1)' }}>
+                          <input
+                            id="bulk-enroll-file-input"
+                            type="file"
+                            accept=".csv, .xlsx"
+                            className="file-input-hidden"
+                            style={{ display: 'none' }}
+                            onChange={(e) => setEnrollFile(e.target.files[0])}
+                          />
+                          <label htmlFor="bulk-enroll-file-input" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                            <span className="upload-icon" style={{ fontSize: '2.5rem' }}>📁</span>
+                            <span className="upload-text" style={{ fontSize: '1rem', fontWeight: 'bold' }}>
+                              {enrollFile ? enrollFile.name : 'Select student roster sheet...'}
+                            </span>
+                            <span className="upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>
+                              Supports CSV / XLSX template formats
+                            </span>
+                          </label>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="dash-chip-btn submit-bulk-btn"
+                          disabled={enrollLoading || !enrollFile}
+                          style={{ background: enrollFile ? 'rgb(var(--admin-pink-rgb))' : 'rgba(255,255,255,0.05)', color: enrollFile ? '#000' : 'rgba(255,255,255,0.3)', border: 'none', fontWeight: 'bold', padding: '1rem', cursor: enrollFile ? 'pointer' : 'not-allowed', borderRadius: '4px', width: '100%' }}
+                        >
+                          {enrollLoading ? 'PROCESSING EXCEL...' : 'BULK UPLOAD & PROVISION 🚀'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+
+                  {/* Right Panel: Enrolled Students List Roster */}
+                  <div className="students-facility-right">
+                    <div className="students-panel glass-card roster-panel" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--admin-border)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <div className="panel-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <div>
+                          <h3 style={{ margin: 0, color: 'rgb(var(--admin-yellow-rgb))' }}>Registered Roster</h3>
+                          <p className="panel-subtitle" style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: 'var(--admin-muted)' }}>
+                            Total enrolled: {enrolledStudents.length} contestants
+                          </p>
+                        </div>
+                        {enrollLoading && <span className="roster-syncing" style={{ fontSize: '0.8rem', color: 'rgb(var(--admin-cyan-rgb))', animation: 'pulse 1.5s infinite' }}>Syncing...</span>}
+                      </div>
+
+                      <div className="roster-table-container" style={{ overflowY: 'auto', maxHeight: '680px', border: '1px solid var(--admin-border)', borderRadius: '6px' }}>
+                        <table className="kbc-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--admin-border)' }}>
+                              <th style={{ padding: '1rem' }}>Seq</th>
+                              <th style={{ padding: '1rem' }}>Player ID</th>
+                              <th style={{ padding: '1rem' }}>Name</th>
+                              <th style={{ padding: '1rem' }}>Payment Status</th>
+                              <th style={{ padding: '1rem' }}>Registered At</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {enrolledStudents.length === 0 ? (
+                              <tr>
+                                <td colSpan="5" className="text-center" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--admin-muted)', fontStyle: 'italic' }}>
+                                  No registered contestants found in this sector yet.<br/>
+                                  Use the forms on the left to add students.
+                                </td>
+                              </tr>
+                            ) : (
+                              enrolledStudents.map((studentReg) => (
+                                <tr key={studentReg.id} style={{ borderBottom: '1px solid var(--admin-border)' }}>
+                                  <td className="font-mono" style={{ padding: '1rem' }}>#{studentReg.sequence_number || studentReg.id}</td>
+                                  <td className="text-cyan font-bold font-mono" style={{ padding: '1rem', color: 'rgb(var(--admin-cyan-rgb))' }}>{studentReg.player_id}</td>
+                                  <td style={{ padding: '1rem' }}>
+                                    <div className="roster-student-details" style={{ display: 'flex', flexDirection: 'column' }}>
+                                      <strong className="text-gold" style={{ color: 'rgb(var(--admin-yellow-rgb))' }}>{studentReg.student_name}</strong>
+                                      <span className="roster-email" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>{studentReg.student_email}</span>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '1rem' }}>
+                                    <span 
+                                      className={`badge-payment ${studentReg.payment_status}`}
+                                      style={{
+                                        display: 'inline-block',
+                                        padding: '0.2rem 0.6rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        background: studentReg.payment_status === 'paid' ? 'rgba(152,255,152,0.15)' : 'rgba(255,223,137,0.15)',
+                                        color: studentReg.payment_status === 'paid' ? '#98ff98' : '#ffdf89',
+                                        border: studentReg.payment_status === 'paid' ? '1px solid rgba(152,255,152,0.3)' : '1px solid rgba(255,223,137,0.3)'
+                                      }}
+                                    >
+                                      {studentReg.payment_status.toUpperCase()}
+                                    </span>
+                                  </td>
+                                  <td className="font-mono" style={{ padding: '1rem', fontSize: '0.85rem' }}>
+                                    {new Date(studentReg.registered_at).toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </section>
 
       {/* Root-Level Fullscreen Modal Overlay */}
@@ -418,64 +1549,64 @@ function AdminDashboardPage() {
         <div className="admin-modal-overlay">
           <div className="admin-modal-content">
             <button className="admin-modal-close" onClick={() => setShowModal(false)} type="button">&times;</button>
-            <h3 style={{marginTop: 0, marginBottom: '1.5rem', color: 'white', fontSize: '1.5rem'}}>Create New Quiz</h3>
+            <h3>{editingQuizId ? 'Edit Quiz' : 'Create New Quiz'}</h3>
             <form onSubmit={handleCreateQuiz} style={{display: 'grid', gap: '1.2rem', gridTemplateColumns: '1fr 1fr'}}>
               <div style={{gridColumn: '1 / -1'}}>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Title</label>
-                <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                <label className="admin-form-label">Title</label>
+                <input required type="text" className="admin-form-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
               </div>
               <div style={{gridColumn: '1 / -1'}}>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Description</label>
-                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', minHeight: '80px', borderRadius: '4px'}} />
+                <label className="admin-form-label">Description</label>
+                <textarea className="admin-form-input admin-form-textarea" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
               </div>
               <div style={{gridColumn: '1 / -1'}}>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Rules & Instructions</label>
-                <textarea value={formData.rules_instructions} onChange={e => setFormData({...formData, rules_instructions: e.target.value})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', minHeight: '80px', borderRadius: '4px'}} />
+                <label className="admin-form-label">Rules & Instructions</label>
+                <textarea className="admin-form-input admin-form-textarea" value={formData.rules_instructions} onChange={e => setFormData({...formData, rules_instructions: e.target.value})} />
               </div>
               
               <div>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Event Date & Time</label>
+                <label className="admin-form-label">Event Date & Time</label>
                 <div style={{display: 'flex', gap: '0.5rem'}}>
-                  <input type="date" value={formData.event_date} onChange={e => setFormData({...formData, event_date: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
-                  <input type="time" value={formData.event_time} onChange={e => setFormData({...formData, event_time: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                  <input type="date" className="admin-form-input" value={formData.event_date} onChange={e => setFormData({...formData, event_date: e.target.value})} />
+                  <input type="time" className="admin-form-input" value={formData.event_time} onChange={e => setFormData({...formData, event_time: e.target.value})} />
                 </div>
               </div>
               <div>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Max Participants</label>
-                <input type="number" min="0" value={formData.max_participants} onChange={e => setFormData({...formData, max_participants: e.target.value})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                <label className="admin-form-label">Max Participants</label>
+                <input type="number" min="0" className="admin-form-input" value={formData.max_participants} onChange={e => setFormData({...formData, max_participants: e.target.value})} />
               </div>
               
               <div>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Registration Open Time</label>
+                <label className="admin-form-label">Registration Open Time</label>
                 <div style={{display: 'flex', gap: '0.5rem'}}>
-                  <input type="date" value={formData.registration_open_date} onChange={e => setFormData({...formData, registration_open_date: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
-                  <input type="time" value={formData.registration_open_time} onChange={e => setFormData({...formData, registration_open_time: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                  <input type="date" className="admin-form-input" value={formData.registration_open_date} onChange={e => setFormData({...formData, registration_open_date: e.target.value})} />
+                  <input type="time" className="admin-form-input" value={formData.registration_open_time} onChange={e => setFormData({...formData, registration_open_time: e.target.value})} />
                 </div>
               </div>
               <div>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Registration Fee (₹)</label>
-                <input type="number" step="0.01" min="0" value={formData.registration_fee} onChange={e => setFormData({...formData, registration_fee: e.target.value})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                <label className="admin-form-label">Registration Fee (₹)</label>
+                <input type="number" step="0.01" min="0" className="admin-form-input" value={formData.registration_fee} onChange={e => setFormData({...formData, registration_fee: e.target.value})} />
               </div>
 
               <div style={{gridColumn: '1 / -1'}}>
-                <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Registration Close Time (Optional)</label>
+                <label className="admin-form-label">Registration Close Time (Optional)</label>
                 <div style={{display: 'flex', gap: '0.5rem'}}>
-                  <input type="date" value={formData.registration_close_date} onChange={e => setFormData({...formData, registration_close_date: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
-                  <input type="time" value={formData.registration_close_time} onChange={e => setFormData({...formData, registration_close_time: e.target.value})} style={{width: '50%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}} />
+                  <input type="date" className="admin-form-input" value={formData.registration_close_date} onChange={e => setFormData({...formData, registration_close_date: e.target.value})} />
+                  <input type="time" className="admin-form-input" value={formData.registration_close_time} onChange={e => setFormData({...formData, registration_close_time: e.target.value})} />
                 </div>
               </div>
 
               {/* Toggles */}
               <div style={{display: 'flex', gap: '1.5rem', alignItems: 'center', gridColumn: '1 / -1', marginTop: '0.5rem', flexWrap: 'wrap'}}>
-                <label style={{color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer'}}>
+                <label className="admin-checkbox-label">
                   <input type="checkbox" checked={formData.visible_to_students} onChange={e => setFormData({...formData, visible_to_students: e.target.checked})} style={{width: '18px', height: '18px'}} />
                   Visible to Students
                 </label>
-                <label style={{color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer'}}>
+                <label className="admin-checkbox-label">
                   <input type="checkbox" checked={formData.is_registration_open} onChange={e => setFormData({...formData, is_registration_open: e.target.checked})} style={{width: '18px', height: '18px'}} />
                   Registration Open
                 </label>
-                <label style={{color: 'rgb(var(--dash-pink-rgb), 0.9)', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginLeft: 'auto'}}>
+                <label className="admin-checkbox-label" style={{marginLeft: 'auto'}}>
                   <input type="checkbox" checked={formData.require_eligibility} onChange={e => setFormData({...formData, require_eligibility: e.target.checked})} style={{width: '18px', height: '18px'}} />
                   Require Eligibility Criteria
                 </label>
@@ -483,41 +1614,41 @@ function AdminDashboardPage() {
 
               {/* Eligibility Filters */}
               {formData.require_eligibility && (
-                <div style={{gridColumn: '1 / -1', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                  <h4 style={{marginTop: 0, marginBottom: '1rem', color: 'white'}}>Eligibility Filters</h4>
+                <div style={{gridColumn: '1 / -1', background: 'var(--admin-surface-soft)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--admin-border)'}}>
+                  <h4 style={{marginTop: 0, marginBottom: '1rem', color: 'var(--admin-text)'}}>Eligibility Filters</h4>
                   <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem'}}>
                     <div>
-                      <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>School</label>
-                      <select value={formData.eligibility_school} onChange={e => setFormData({...formData, eligibility_school: e.target.value, eligibility_programs: [], eligibility_branches: []})} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px'}}>
+                      <label className="admin-form-label">School</label>
+                      <select className="admin-form-input" value={formData.eligibility_school} onChange={e => setFormData({...formData, eligibility_school: e.target.value, eligibility_programs: [], eligibility_branches: []})}>
                         <option value="">Any School</option>
                         {schools.map(school => <option key={school.id} value={school.id}>{school.school_code}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Programmes (Multiple)</label>
-                      <select multiple value={formData.eligibility_programs} onChange={e => setFormData({...formData, eligibility_programs: Array.from(e.target.selectedOptions, option => option.value)})} disabled={!formData.eligibility_school} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px', minHeight: '80px'}}>
+                      <label className="admin-form-label">Programmes (Multiple)</label>
+                      <select multiple className="admin-form-input" value={formData.eligibility_programs} onChange={e => setFormData({...formData, eligibility_programs: Array.from(e.target.selectedOptions, option => option.value)})} disabled={!formData.eligibility_school}>
                         {programs.map(program => <option key={program.id} value={program.id}>{program.program_code}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={{display: 'block', marginBottom: '0.5rem', color: 'rgba(255,255,255,0.7)'}}>Branches (Multiple)</label>
-                      <select multiple value={formData.eligibility_branches} onChange={e => setFormData({...formData, eligibility_branches: Array.from(e.target.selectedOptions, option => option.value)})} disabled={formData.eligibility_programs.length === 0} style={{width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px', minHeight: '80px'}}>
+                      <label className="admin-form-label">Branches (Multiple)</label>
+                      <select multiple className="admin-form-input" value={formData.eligibility_branches} onChange={e => setFormData({...formData, eligibility_branches: Array.from(e.target.selectedOptions, option => option.value)})} disabled={formData.eligibility_programs.length === 0}>
                         {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.branch_code}</option>)}
                       </select>
                     </div>
                   </div>
-                  <p style={{margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)'}}>Hold Ctrl (Windows) or Command (Mac) to select multiple options.</p>
+                  <p style={{margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--admin-muted)'}}>Hold Ctrl (Windows) or Command (Mac) to select multiple options.</p>
                 </div>
               )}
               
-              <div style={{gridColumn: '1 / -1', marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem'}}>
-                <button type="button" onClick={() => setShowModal(false)} style={{background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '0.8rem 1.5rem', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
+              <div style={{gridColumn: '1 / -1', marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem'}}>
+                <button type="button" className="admin-btn-cancel" onClick={() => setShowModal(false)}>
                   CANCEL
                 </button>
-                <button type="button" onClick={handleSaveDraft} disabled={submitLoading} style={{background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '0.8rem 1.5rem', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
+                <button type="button" className="admin-btn-draft" onClick={handleSaveDraft} disabled={submitLoading}>
                   SAVE AS DRAFT
                 </button>
-                <button className="dash-chip-btn" type="submit" disabled={submitLoading} style={{background: 'rgb(var(--dash-mint-rgb))', color: 'black', border: 'none', fontWeight: 'bold', padding: '0.8rem 2rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
+                <button className="dash-chip-btn" type="submit" disabled={submitLoading} style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 2rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
                   {submitLoading ? 'SAVING...' : 'CREATE QUIZ'}
                 </button>
               </div>

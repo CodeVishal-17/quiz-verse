@@ -4,6 +4,7 @@ import LoginPage from './components/LoginPage/LoginPage';
 import RegistrationPage from './components/RegistrationPage/RegistrationPage';
 import DashboardPage from './components/DashboardPage/DashboardPage';
 import AdminDashboardPage from './components/AdminDashboardPage/AdminDashboardPage';
+import QuizArenaPage from './components/QuizArenaPage/QuizArenaPage';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import './App.css';
 
@@ -18,6 +19,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={['student']}>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/quiz/:id/play"
+        element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <QuizArenaPage />
           </ProtectedRoute>
         }
       />

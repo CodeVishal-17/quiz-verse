@@ -43,12 +43,7 @@ function DashboardPage() {
     lastBadge: studentData.last_badge || 'QUALIFIER',
   };
 
-  const navigation = [
-    { label: 'Dashboard', symbol: SYMBOLS.square, active: true },
-    { label: 'Registered Quizzes', symbol: SYMBOLS.triangle },
-    { label: 'Upcoming Quizzes / Notices', symbol: SYMBOLS.diamond },
-    { label: 'Payments & History', symbol: SYMBOLS.circle },
-  ];
+
 
   const fetchDashboardData = async (isBackground = false) => {
     try {
@@ -132,6 +127,174 @@ function DashboardPage() {
     setCoreOffset({ x, y });
   };
 
+  const renderProfile = () => (
+    <article className="profile-module tilt-card">
+      <div className="profile-photo-wrap">
+        <div className="profile-orbit" />
+        <div className="profile-photo">
+          <span>{student.name.slice(0, 1).toUpperCase()}</span>
+        </div>
+      </div>
+      <div className="profile-copy">
+        <span className="module-kicker">Student Identity</span>
+        <h2>{student.name}</h2>
+        <p>{student.branch} {SYMBOLS.dot} {student.year}</p>
+        <div className="profile-status-row">
+          <span>{student.status}</span>
+        </div>
+        
+        <div className="profile-stats-grid">
+          <div className="profile-stat-box">
+            <span className="stat-label">REGISTERED</span>
+            <strong className="stat-value">{myRegistrations.length}</strong>
+          </div>
+          <div className="profile-stat-box">
+            <span className="stat-label">LIVE ARENAS</span>
+            <strong className="stat-value">{myRegistrations.filter(r => r.payment_status === 'paid').length}</strong>
+          </div>
+          <div className="profile-stat-box">
+            <span className="stat-label">CONTEST LEVEL</span>
+            <strong className="stat-value">LVL {myRegistrations.length > 0 ? '02' : '01'}</strong>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+
+  const renderAvailableEvents = () => (
+    <article className="event-hero tilt-card">
+      <div className="event-copy">
+        <span className="event-status">Active Quizzes</span>
+        <h2>Available Events</h2>
+        <p>Select a published event to view details and register.</p>
+        
+        {loading ? (
+          <div className="event-list-container"><span style={{color: 'rgba(255,255,255,0.7)'}}>Initializing arena scanner...</span></div>
+        ) : publishedQuizzes.length === 0 ? (
+          <p style={{marginTop: '1rem', color: 'rgba(255,255,255,0.7)', fontStyle: 'italic'}}>
+            No competition windows are currently open.<br/>
+            Await the next arena activation.
+          </p>
+        ) : (
+          <div className="event-list-container">
+            {publishedQuizzes.map((quiz, index) => (
+              <button 
+                key={quiz.id} 
+                className="event-list-item" 
+                onClick={() => setSelectedQuiz(quiz)}
+              >
+                <div className="event-item-number">{String(index + 1).padStart(2, '0')}</div>
+                <div className="event-item-details">
+                  <h3>{quiz.title}</h3>
+                  <div className="event-item-meta">
+                    <span>{quiz.registered_count} Registered</span>
+                    {quiz.event_date && <span> • {new Date(quiz.event_date).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+                <div className="event-item-action">ENTER &rarr;</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="event-visual-stack" aria-hidden="true">
+        <span>{SYMBOLS.triangle}</span>
+        <span>{SYMBOLS.circle}</span>
+        <span>{SYMBOLS.square}</span>
+      </div>
+    </article>
+  );
+
+
+
+  const renderRegisteredQuizzes = () => (
+    <article className="registered-panel tilt-card">
+      <div className="panel-heading">
+        <span>{SYMBOLS.triangle}</span>
+        <h2>Registered Quizzes / Live Arena</h2>
+      </div>
+
+      <div className="registered-list">
+        {loading ? (
+          <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>Scanning participation logs...</p>
+        ) : myRegistrations.length === 0 ? (
+          <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>No participation records found in this sector.</p>
+        ) : (
+          myRegistrations.map((reg) => {
+            const hasPaid = reg.payment_status === 'paid';
+            const playerID = reg.player_id || 'Awaiting Payment';
+            const password = reg.quiz_details?.event_password || 'Not Required';
+            
+            return (
+              <div
+                className={`registered-card ${hasPaid ? 'registered-paid-kbc' : 'registered-pending-kbc'}`}
+                key={reg.id}
+                onClick={() => setSelectedQuiz(reg.quiz_details)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="registered-card-main">
+                  <div className="registered-card-header">
+                    <span className="kbc-badge">ARENA EVENT</span>
+                    <h3>{reg.quiz_details?.title}</h3>
+                  </div>
+                  
+                  <div className="credentials-display-row">
+                    <div className="credential-pill player-id-pill">
+                      <span className="pill-label">Player ID</span>
+                      <strong className="pill-val">{playerID}</strong>
+                    </div>
+                    <div className="credential-pill password-pill">
+                      <span className="pill-label">Event Password</span>
+                      <strong className="pill-val">{password}</strong>
+                    </div>
+                  </div>
+                  
+                  <div className="registered-card-meta">
+                    <span>Payment: <strong className={hasPaid ? 'text-success' : 'text-warning'}>{reg.payment_status.toUpperCase()}</strong></span>
+                    <span> • Registered: {new Date(reg.registered_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                
+                <div className="registered-card-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="details-btn-card"
+                    onClick={() => setSelectedQuiz(reg.quiz_details)}
+                  >
+                    VIEW DETAILS
+                  </button>
+                  {hasPaid ? (
+                    <Link
+                      to={`/quiz/${reg.quiz_details?.id}/play`}
+                      className="enter-arena-btn-card"
+                      onClick={() => {
+                        localStorage.setItem(`quiz-${reg.quiz_details?.id}-player-id`, playerID);
+                        localStorage.setItem(`quiz-${reg.quiz_details?.id}-event-password`, password);
+                      }}
+                    >
+                      ENTER ARENA &rarr;
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className="payment-trigger-btn-card"
+                      onClick={() => setSelectedQuiz(reg.quiz_details)}
+                    >
+                      PAY & ENTER
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </article>
+  );
+
+
+
   return (
     <main
       className={`dashboard-page ${isLight ? 'theme-light' : 'theme-dark'}`}
@@ -161,33 +324,17 @@ function DashboardPage() {
         <div className="dash-field field-two" />
       </div>
 
-      <aside className="dashboard-sidebar" aria-label="Dashboard navigation">
-        <Link className="dashboard-brand" to="/">
-          <span>{SYMBOLS.triangle}</span>
-          QuizVerse
-        </Link>
-
-        <nav className="sidebar-nav">
-          {navigation.map((item) => (
-            <button className={`sidebar-item ${item.active ? 'active' : ''}`} key={item.label} type="button">
-              <span className="sidebar-icon">{item.symbol}</span>
-              <span className="sidebar-label">{item.label}</span>
-              <span className="sidebar-hover-symbol">{item.symbol}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-note">
-          <span>{SYMBOLS.circle}</span>
-          <p>Workspace mode active</p>
-        </div>
-      </aside>
-
       <section className="dashboard-shell">
         <header className="dashboard-topbar">
-          <div>
-            <p className="welcome-kicker">Welcome back, {student.name}</p>
-            <h1>{student.school} {SYMBOLS.dot} {student.branch} {SYMBOLS.dot} {student.year}</h1>
+          <div className="topbar-brand-welcome">
+            <Link className="dashboard-brand" to="/">
+              <span>{SYMBOLS.triangle}</span>
+              QuizVerse
+            </Link>
+            <div className="welcome-info">
+              <p className="welcome-kicker">Welcome back, {student.name}</p>
+              <h1>{student.school} {SYMBOLS.dot} {student.branch} {SYMBOLS.dot} {student.year}</h1>
+            </div>
           </div>
 
           <div className="topbar-actions" aria-label="Dashboard utilities">
@@ -207,156 +354,12 @@ function DashboardPage() {
         </header>
 
         <section className="dashboard-intro-grid">
-          <article className="profile-module tilt-card">
-            <div className="profile-photo-wrap">
-              <div className="profile-orbit" />
-              <div className="profile-photo">
-                {profileImage ? (
-                  <img src={profileImage} alt={`${student.name} profile preview`} />
-                ) : (
-                  <span>{student.name.slice(0, 1)}</span>
-                )}
-              </div>
-              <label className="profile-upload">
-                <input accept="image/*" type="file" onChange={handleImageUpload} />
-                <span>{SYMBOLS.upload}</span>
-              </label>
-            </div>
-
-            <div className="profile-copy">
-              <span className="module-kicker">Student Identity</span>
-              <h2>{student.name}</h2>
-              <p>{student.school} {SYMBOLS.dot} {student.branch} {SYMBOLS.dot} {student.year}</p>
-              <div className="profile-status-row">
-                <span>{student.status}</span>
-              </div>
-            </div>
-
-            <div className="last-badge-card" aria-label="Last badge earned">
-              <span>Last Badge Earned</span>
-              <strong>{student.lastBadge}</strong>
-            </div>
-          </article>
-
-          <article className="event-hero tilt-card">
-            <div className="event-copy">
-              <span className="event-status">Active Quizzes</span>
-              <h2>Available Events</h2>
-              <p>Select a published event to view details and register.</p>
-              
-              {loading ? (
-                <div className="hero-chips"><span>Initializing arena scanner...</span></div>
-              ) : publishedQuizzes.length === 0 ? (
-                <p style={{marginTop: '1rem', color: 'rgba(255,255,255,0.7)', fontStyle: 'italic'}}>
-                  No competition windows are currently open.<br/>
-                  Await the next arena activation.
-                </p>
-              ) : (
-                <div className="hero-chips">
-                  {publishedQuizzes.map(quiz => (
-                    <button 
-                      key={quiz.id} 
-                      className="dash-chip-btn" 
-                      onClick={() => setSelectedQuiz(quiz)}
-                    >
-                      {quiz.title} ({quiz.registered_count} joined)
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="event-visual-stack" aria-hidden="true">
-              <span>{SYMBOLS.triangle}</span>
-              <span>{SYMBOLS.circle}</span>
-              <span>{SYMBOLS.square}</span>
-            </div>
-          </article>
+          {renderProfile()}
+          {renderAvailableEvents()}
         </section>
 
-        <section className="visual-grid">
-          <article className="insight-panel qualification-panel tilt-card">
-            <div className="panel-heading">
-              <span>{SYMBOLS.circle}</span>
-              <h2>Qualification Rate</h2>
-            </div>
-            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
-              Performance analytics unlock after first completed quiz.
-            </div>
-          </article>
-
-          <article className="insight-panel accuracy-panel tilt-card">
-            <div className="panel-heading">
-              <span>{SYMBOLS.diamond}</span>
-              <h2>Quiz Accuracy</h2>
-            </div>
-            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
-              Accuracy tracking activates once participation begins.
-            </div>
-          </article>
-
-          <article className="insight-panel rounds-panel tilt-card">
-            <div className="panel-heading">
-              <span>{SYMBOLS.square}</span>
-              <h2>Rounds Cleared</h2>
-            </div>
-            <div style={{marginTop: 'auto', padding: '1rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', fontStyle: 'italic', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
-              No competition rounds completed yet.
-            </div>
-          </article>
-        </section>
-
-        <section className="dashboard-lower-grid">
-          <article className="registered-panel tilt-card">
-            <div className="panel-heading">
-              <span>{SYMBOLS.triangle}</span>
-              <h2>Registered Quizzes</h2>
-            </div>
-
-            <div className="registered-list">
-              {loading ? (
-                <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>Scanning participation logs...</p>
-              ) : myRegistrations.length === 0 ? (
-                <p style={{color: 'var(--dash-muted)', padding: '1rem'}}>No participation records found in this sector.</p>
-              ) : (
-                myRegistrations.map((reg) => (
-                  <button
-                    className={`registered-card registered-mint`}
-                    key={reg.id}
-                    type="button"
-                    onClick={() => setSelectedQuiz(reg.quiz_details)}
-                  >
-                    <div>
-                      <h3>{reg.quiz_details?.title}</h3>
-                      <p>{reg.player_id || 'ID Pending'}</p>
-                    </div>
-                    <div className="registered-status">
-                      <span>{SYMBOLS.check} {reg.quiz_details?.status.replace('_', ' ')}</span>
-                      <small>Payment: {reg.payment_status}</small>
-                      <em>Registered: {new Date(reg.registered_at).toLocaleDateString()}</em>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </article>
-
-          <article className="briefings-panel tilt-card">
-            <div className="panel-heading">
-              <span>{SYMBOLS.diamond}</span>
-              <h2>Match Briefings</h2>
-            </div>
-            <div className="briefing-stack">
-              <div key="stats1">
-                <span>Total Registrations</span>
-                <strong>{myRegistrations.length}</strong>
-              </div>
-              <div key="stats2">
-                <span>Completed Payments</span>
-                <strong>{myRegistrations.filter(r => r.payment_status === 'paid').length}</strong>
-              </div>
-            </div>
-          </article>
+        <section className="dashboard-lower-grid" style={{ gridTemplateColumns: '1fr' }}>
+          {renderRegisteredQuizzes()}
         </section>
       </section>
 
@@ -396,18 +399,33 @@ function DashboardPage() {
               {registration ? (
                 <div style={{padding: '1rem', border: '1px solid rgba(var(--dash-mint-rgb), 0.3)', borderRadius: '8px', background: 'rgba(var(--dash-mint-rgb), 0.05)'}}>
                   <h3 style={{marginTop: 0, color: 'rgb(var(--dash-mint-rgb))'}}>Registration Status</h3>
-                  <p><strong>Payment Status:</strong> {registration.payment_status.toUpperCase()}</p>
-                  <p><strong>Player ID:</strong> {registration.player_id || 'Awaiting Payment'}</p>
+                  <p style={{margin: '0.5rem 0'}}><strong>Payment Status:</strong> <span className={registration.payment_status === 'paid' ? 'text-success' : 'text-warning'}>{registration.payment_status.toUpperCase()}</span></p>
+                  <p style={{margin: '0.5rem 0'}}><strong>Player ID:</strong> <span className="neon-value-green">{registration.player_id || 'Awaiting Payment'}</span></p>
+                  <p style={{margin: '0.5rem 0'}}><strong>Event Password:</strong> <span className="neon-value-gold">{selectedQuiz.event_password || 'Not Required'}</span></p>
                   
                   {registration.payment_status === 'pending' && parseFloat(selectedQuiz.registration_fee) > 0 && (
                     <button 
                       className="btn-submit" 
-                      style={{marginTop: '1rem', width: '100%'}} 
+                      style={{marginTop: '1.25rem', width: '100%'}} 
                       onClick={() => handleMockPayment(selectedQuiz.id)}
                       disabled={actionLoading}
                     >
                       {actionLoading ? 'PROCESSING...' : 'COMPLETE MOCK PAYMENT'}
                     </button>
+                  )}
+                  
+                   {registration.payment_status === 'paid' && (
+                    <Link
+                      to={`/quiz/${selectedQuiz.id}/play`}
+                      className="btn-submit"
+                      style={{marginTop: '1.25rem', width: '100%', display: 'block', textAlign: 'center', textDecoration: 'none', background: 'linear-gradient(135deg, #ffd700, #d4af37)', color: '#000', fontWeight: 'bold'}}
+                      onClick={() => {
+                        localStorage.setItem(`quiz-${selectedQuiz.id}-player-id`, registration.player_id);
+                        localStorage.setItem(`quiz-${selectedQuiz.id}-event-password`, selectedQuiz.event_password);
+                      }}
+                    >
+                      ENTER ARENA
+                    </Link>
                   )}
                 </div>
               ) : (
