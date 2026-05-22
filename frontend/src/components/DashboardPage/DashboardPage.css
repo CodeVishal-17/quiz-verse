@@ -1,51 +1,65 @@
 .dashboard-page {
-  --dash-bg: #121111;
-  --dash-bg-deep: #0d0d0c;
-  --dash-surface: rgba(25, 24, 24, 0.72);
-  --dash-surface-soft: rgba(253, 251, 247, 0.045);
-  --dash-border: rgba(253, 251, 247, 0.09);
-  --drawer-surface: rgba(19, 18, 18, 0.92);
-  --drawer-inner: rgba(253, 251, 247, 0.07);
-  --core-opacity: 0.54;
+  --dash-bg: #060924;
+  --dash-bg-deep: #02030f;
+  --dash-surface: rgba(11, 15, 47, 0.82);
+  --dash-surface-soft: rgba(255, 255, 255, 0.05);
+  --dash-border: rgba(0, 240, 255, 0.16);
+  --drawer-surface: rgba(8, 10, 31, 0.95);
+  --drawer-inner: rgba(255, 255, 255, 0.06);
+  --core-opacity: 0.65;
   --core-blend: screen;
   --dash-text: #fdfbf7;
-  --dash-muted: rgba(253, 251, 247, 0.58);
-  --dash-shadow: 0 26px 90px rgba(0, 0, 0, 0.36);
-  --dash-pink-rgb: 255, 182, 193;
-  --dash-mint-rgb: 152, 255, 152;
+  --dash-muted: rgba(253, 251, 247, 0.65);
+  --dash-shadow: 0 26px 90px rgba(0, 0, 0, 0.45);
+  --dash-pink-rgb: 212, 175, 55;  /* Gold */
+  --dash-mint-rgb: 0, 240, 255;   /* Electric Cyan */
   --dash-cyan-rgb: 125, 232, 235;
   min-height: 100vh;
   width: 100vw;
   position: relative;
   overflow-x: hidden;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   background:
-    radial-gradient(circle at 18% 12%, rgba(var(--dash-pink-rgb), 0.12), transparent 30%),
-    radial-gradient(circle at 88% 8%, rgba(var(--dash-mint-rgb), 0.1), transparent 26%),
-    linear-gradient(135deg, var(--dash-bg) 0%, #171514 48%, var(--dash-bg-deep) 100%);
+    radial-gradient(circle at 18% 12%, rgba(var(--dash-pink-rgb), 0.16), transparent 30%),
+    radial-gradient(circle at 88% 8%, rgba(var(--dash-mint-rgb), 0.12), transparent 26%),
+    linear-gradient(135deg, var(--dash-bg) 0%, #0e123a 48%, var(--dash-bg-deep) 100%);
   color: var(--dash-text);
   transition: background 700ms ease, color 700ms ease;
 }
 
 .dashboard-page.theme-light {
-  --dash-bg: #f8ecef;
-  --dash-bg-deep: #edf9f1;
-  --dash-surface: rgba(255, 252, 249, 0.82);
-  --dash-surface-soft: rgba(255, 255, 255, 0.58);
-  --dash-border: rgba(65, 48, 54, 0.18);
-  --drawer-surface: rgba(255, 250, 247, 0.94);
-  --drawer-inner: rgba(255, 255, 255, 0.74);
-  --core-opacity: 0.48;
-  --core-blend: multiply;
-  --dash-text: #211c1d;
-  --dash-muted: rgba(33, 28, 29, 0.68);
-  --dash-shadow: 0 24px 80px rgba(111, 82, 91, 0.2), 0 8px 24px rgba(70, 52, 58, 0.08);
+  /* Premium daytime steel-blue & lavender-silver studio backdrop */
+  --dash-bg: #f2f5fa;
+  --dash-bg-deep: #d9e2f2;
+  
+  /* Pure brilliant white card surface for supreme contrast */
+  --dash-surface: #ffffff;
+  --dash-surface-soft: rgba(10, 17, 69, 0.05);
+  
+  /* Shimmering KBC Gold/Bronze borders for a prestigious look */
+  --dash-border: rgba(196, 109, 28, 0.25);
+  --drawer-surface: #ffffff;
+  --drawer-inner: #f5f8fc;
+  
+  --core-opacity: 0.85;
+  --core-blend: multiply; /* Blend perfectly with light background */
+  
+  /* Ultra-legible deep royal indigo for text */
+  --dash-text: #0b1035;
+  --dash-muted: #52609c;
+  --dash-shadow: 0 20px 48px rgba(10, 17, 69, 0.06), 0 8px 20px rgba(10, 17, 69, 0.03);
+  
+  /* Vibrant KBC highlighting accents */
+  --dash-pink-rgb: 196, 109, 28;  /* KBC Gold-Bronze */
+  --dash-mint-rgb: 0, 119, 182;   /* Royal Sapphire Blue */
+  --dash-cyan-rgb: 0, 180, 216;   /* Electric Sky Blue */
+  
   background:
-    radial-gradient(circle at 18% 12%, rgba(var(--dash-pink-rgb), 0.34), transparent 32%),
-    radial-gradient(circle at 87% 7%, rgba(var(--dash-mint-rgb), 0.28), transparent 30%),
-    radial-gradient(circle at 62% 90%, rgba(var(--dash-cyan-rgb), 0.18), transparent 28%),
-    linear-gradient(135deg, #f8ecef 0%, #fff8f3 44%, #edf9f1 100%);
+    radial-gradient(circle at 18% 12%, rgba(196, 109, 28, 0.08), transparent 38%),
+    radial-gradient(circle at 87% 7%, rgba(0, 119, 182, 0.06), transparent 34%),
+    radial-gradient(circle at 62% 90%, rgba(0, 180, 216, 0.05), transparent 32%),
+    linear-gradient(135deg, var(--dash-bg) 0%, #e6ecf7 50%, var(--dash-bg-deep) 100%);
 }
 
 .dashboard-background {
@@ -68,9 +82,9 @@
 
 .theme-light .dashboard-background::after {
   background:
-    linear-gradient(90deg, rgba(255, 248, 245, 0.32), transparent 24%, transparent 72%, rgba(255, 248, 245, 0.22)),
-    radial-gradient(circle at 50% 45%, transparent 0 18%, rgba(255, 248, 245, 0.32) 58%, rgba(246, 230, 234, 0.46) 100%);
-  opacity: 0.86;
+    linear-gradient(90deg, rgba(10, 17, 69, 0.02), transparent 24%, transparent 72%, rgba(10, 17, 69, 0.02)),
+    radial-gradient(circle at 50% 45%, transparent 0 18%, rgba(10, 17, 69, 0.03) 58%, rgba(10, 17, 69, 0.05) 100%);
+  opacity: 0.65;
 }
 
 .dashboard-orb {
@@ -125,9 +139,9 @@
 
 .theme-light .dashboard-grid {
   background-image:
-    linear-gradient(rgba(33, 28, 29, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(33, 28, 29, 0.035) 1px, transparent 1px),
-    linear-gradient(120deg, transparent 0 62%, rgba(var(--dash-pink-rgb), 0.17) 62.1% 62.25%, transparent 62.4%);
+    linear-gradient(rgba(10, 17, 69, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 17, 69, 0.025) 1px, transparent 1px),
+    linear-gradient(120deg, transparent 0 62%, rgba(196, 109, 28, 0.035) 62.1% 62.25%, transparent 62.4%);
 }
 
 .dashboard-particles {
@@ -138,7 +152,7 @@
 }
 
 .theme-light .dashboard-particles {
-  background-image: radial-gradient(circle, rgba(33, 28, 29, 0.14) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(10, 17, 69, 0.05) 1px, transparent 1px);
 }
 
 .dash-env-symbol {
@@ -266,6 +280,7 @@
 .sidebar-hover-symbol {
   font-family: monospace;
   font-weight: 900;
+  font-size: 1.4rem;
 }
 
 .sidebar-icon {
@@ -331,6 +346,18 @@
   margin-bottom: 1.5rem;
 }
 
+.topbar-brand-welcome {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+}
+
+.topbar-brand-welcome .dashboard-brand {
+  text-decoration: none;
+  min-height: auto;
+  flex-shrink: 0;
+}
+
 .welcome-kicker {
   margin: 0 0 0.35rem;
   color: rgb(var(--dash-pink-rgb));
@@ -364,6 +391,7 @@
   background: var(--dash-surface-soft);
   color: var(--dash-muted);
   cursor: pointer;
+  font-size: 1.35rem;
   transition: transform 360ms ease, color 360ms ease, background 360ms ease, border-color 360ms ease;
 }
 
@@ -407,18 +435,20 @@
 }
 
 .profile-module {
-  min-height: 360px;
   display: grid;
-  align-content: space-between;
-  gap: 1.3rem;
-  padding: 1.4rem;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  align-self: stretch;
+  height: 100%;
+  gap: 1.5rem;
+  padding: 1.5rem;
   border-radius: 22px 8px 28px 8px;
 }
 
 .profile-photo-wrap {
   position: relative;
-  width: 174px;
-  height: 174px;
+  width: 140px;
+  height: 140px;
   margin: 0 auto;
   display: grid;
   place-items: center;
@@ -436,8 +466,8 @@
 
 .profile-photo {
   position: relative;
-  width: 142px;
-  height: 142px;
+  width: 110px;
+  height: 110px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -447,7 +477,7 @@
     linear-gradient(135deg, rgba(var(--dash-pink-rgb), 0.42), rgba(var(--dash-mint-rgb), 0.28)),
     var(--dash-surface-soft);
   color: var(--dash-bg);
-  font-size: 4rem;
+  font-size: 3rem;
   font-weight: 900;
   box-shadow: inset 0 0 34px rgba(253, 251, 247, 0.12);
 }
@@ -460,10 +490,10 @@
 
 .profile-upload {
   position: absolute;
-  right: 7px;
-  bottom: 18px;
-  width: 42px;
-  height: 42px;
+  right: 0px;
+  bottom: 5px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -471,6 +501,7 @@
   background: color-mix(in srgb, var(--dash-surface) 85%, rgb(var(--dash-pink-rgb)));
   color: var(--dash-text);
   cursor: pointer;
+  font-size: 0.95rem;
   transition: var(--transition);
 }
 
@@ -569,6 +600,7 @@
   grid-template-columns: minmax(0, 1fr) 310px;
   gap: 2rem;
   align-items: center;
+  align-self: stretch;
   padding: clamp(1.5rem, 4vw, 3rem);
   border-radius: 8px 30px 8px 22px;
   background:
@@ -611,8 +643,122 @@
 .hero-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: 1.35rem;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.dash-chip-btn {
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  background: var(--dash-surface-soft);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--dash-text);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.theme-light .dash-chip-btn {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.dash-chip-btn:hover {
+  background: rgba(var(--dash-cyan-rgb), 0.15);
+  border-color: rgb(var(--dash-cyan-rgb));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(var(--dash-cyan-rgb), 0.2);
+}
+
+.event-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  width: 100%;
+}
+
+.event-list-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  background: var(--dash-surface-soft);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--dash-text);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.event-list-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(var(--dash-mint-rgb), 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.event-list-item:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--dash-mint-rgb), 0.3);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.event-list-item:hover::before {
+  opacity: 1;
+}
+
+.event-item-number {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.15);
+  font-family: monospace;
+  transition: color 0.35s ease;
+}
+
+.event-list-item:hover .event-item-number {
+  color: rgb(var(--dash-mint-rgb));
+}
+
+.event-item-details h3 {
+  margin: 0 0 0.4rem 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--dash-text);
+}
+
+.event-item-meta {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--dash-muted);
+  font-family: monospace;
+}
+
+.event-item-action {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgb(var(--dash-pink-rgb));
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: all 0.35s ease;
+}
+
+.event-list-item:hover .event-item-action {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .system-core {
@@ -902,6 +1048,178 @@
   font-style: normal;
 }
 
+/* Premium KBC Event Card Details */
+.registered-paid-kbc {
+  border: 1px solid rgba(212, 175, 55, 0.45) !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(11, 15, 47, 0.95)) !important;
+  box-shadow: 0 8px 32px rgba(212, 175, 55, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.registered-paid-kbc:hover {
+  border-color: rgba(212, 175, 55, 0.85) !important;
+  box-shadow: 0 12px 40px rgba(212, 175, 55, 0.28);
+  transform: translateY(-2px) translateX(2px) !important;
+}
+
+.registered-pending-kbc {
+  border: 1px solid rgba(255, 140, 0, 0.35) !important;
+  background: linear-gradient(135deg, rgba(255, 140, 0, 0.06), rgba(11, 15, 47, 0.85)) !important;
+}
+
+.registered-pending-kbc:hover {
+  border-color: rgba(255, 140, 0, 0.6) !important;
+  transform: translateY(-2px) translateX(2px) !important;
+}
+
+.kbc-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #ffd700, #aa7c11);
+  color: #121111;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+  text-shadow: none;
+}
+
+.credentials-display-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.credential-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.theme-light .credential-pill {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pill-label {
+  font-size: 0.72rem;
+  color: var(--dash-muted);
+  text-transform: uppercase;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.pill-val {
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.player-id-pill .pill-val {
+  color: #52ff90;
+  text-shadow: 0 0 10px rgba(82, 255, 144, 0.3);
+}
+
+.password-pill .pill-val {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.enter-arena-btn-card {
+  display: inline-block;
+  padding: 0.65rem 1.15rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffd700, #d4af37);
+  color: #000 !important;
+  font-weight: 900;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.enter-arena-btn-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.7);
+  background: linear-gradient(135deg, #fff, #ffd700);
+}
+
+.payment-trigger-btn-card {
+  padding: 0.65rem 1.15rem;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffa500 !important;
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.payment-trigger-btn-card:hover {
+  background: rgba(255, 165, 0, 0.1);
+  border-color: #ffa500;
+  box-shadow: 0 0 15px rgba(255, 165, 0, 0.25);
+}
+
+.registered-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.details-btn-card {
+  padding: 0.65rem 1.15rem;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffd700 !important;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.details-btn-card:hover {
+  background: rgba(255, 215, 0, 0.1);
+  border-color: #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+}
+
+.neon-value-green {
+  color: #52ff90;
+  text-shadow: 0 0 8px rgba(82, 255, 144, 0.4);
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.neon-value-gold {
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.text-success {
+  color: #52ff90 !important;
+  font-weight: bold;
+}
+
+.text-warning {
+  color: #ffd700 !important;
+  font-weight: bold;
+}
+
 .activity-panel {
   border-radius: 28px 8px 8px 8px;
 }
@@ -1019,10 +1337,10 @@
 
 .theme-light .ambient-core::before {
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.54), transparent 34%),
-    radial-gradient(circle at 38% 34%, rgba(var(--dash-mint-rgb), 0.2), transparent 36%),
-    radial-gradient(circle at 65% 68%, rgba(var(--dash-pink-rgb), 0.28), transparent 38%),
-    conic-gradient(from 140deg, rgba(var(--dash-pink-rgb), 0.22), rgba(var(--dash-mint-rgb), 0.18), rgba(var(--dash-cyan-rgb), 0.2), rgba(255, 244, 232, 0.42));
+    radial-gradient(circle, rgba(255, 255, 255, 0.8), transparent 34%),
+    radial-gradient(circle at 38% 34%, rgba(var(--dash-mint-rgb), 0.15), transparent 36%),
+    radial-gradient(circle at 65% 68%, rgba(var(--dash-pink-rgb), 0.15), transparent 38%),
+    conic-gradient(from 140deg, rgba(var(--dash-pink-rgb), 0.15), rgba(var(--dash-mint-rgb), 0.12), rgba(var(--dash-cyan-rgb), 0.1), rgba(255, 255, 255, 0.5));
 }
 
 .ambient-core span {
@@ -1075,29 +1393,27 @@
 .theme-light .registered-panel,
 .theme-light .briefings-panel,
 .theme-light .quiz-detail-drawer {
-  border-color: rgba(65, 48, 54, 0.2);
-  box-shadow: var(--dash-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  border-color: var(--dash-border);
+  box-shadow: var(--dash-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .profile-module {
-  min-height: 300px;
-  grid-template-columns: 178px minmax(0, 1fr);
-  align-items: center;
-  align-content: center;
-  gap: 1.1rem;
-  padding: 1.25rem;
-}
-
-.profile-photo-wrap {
-  margin: 0;
+  height: 100% !important;
+  align-self: stretch !important;
+  display: grid !important;
+  grid-template-columns: 140px minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 1.5rem !important;
+  padding: 1.5rem !important;
 }
 
 .profile-copy {
-  text-align: left;
+  text-align: left !important;
+  width: 100% !important;
 }
 
 .profile-status-row {
-  justify-content: flex-start;
+  justify-content: flex-start !important;
 }
 
 .badge-rack {
@@ -1129,21 +1445,61 @@
 }
 
 .event-hero {
-  grid-template-columns: minmax(0, 1fr) 210px;
+  grid-template-columns: 1fr !important;
+}
+
+.event-copy {
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .event-visual-stack {
-  position: relative;
-  width: 190px;
-  aspect-ratio: 1;
+  display: none !important;
+}
+
+/* Premium Contestant Stats Grid inside Profile */
+.profile-stats-grid {
   display: grid;
-  place-items: center;
-  justify-self: center;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle, rgba(var(--dash-mint-rgb), 0.14), transparent 58%),
-    conic-gradient(from 70deg, rgba(var(--dash-pink-rgb), 0.26), transparent, rgba(var(--dash-mint-rgb), 0.22), transparent);
-  animation: ringLift 5s ease-in-out infinite;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-top: 1.15rem;
+  width: 100%;
+}
+
+.profile-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.35rem;
+  border-radius: 8px;
+  background: var(--dash-surface-soft);
+  border: 1px solid var(--dash-border);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-stat-box:hover {
+  border-color: rgba(var(--dash-pink-rgb), 0.6);
+  background: rgba(var(--dash-pink-rgb), 0.08);
+  transform: translateY(-2px);
+}
+
+.stat-label {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--dash-muted);
+  font-family: monospace;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.stat-value {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: rgb(var(--dash-pink-rgb));
+  font-family: monospace;
+  margin-top: 0.2rem;
 }
 
 .event-visual-stack span {
@@ -1247,14 +1603,14 @@
 
 .theme-light .quiz-detail-drawer {
   background:
-    linear-gradient(145deg, rgba(var(--dash-pink-rgb), 0.16), transparent 28%),
-    linear-gradient(315deg, rgba(var(--dash-mint-rgb), 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(var(--dash-pink-rgb), 0.05), transparent 28%),
+    linear-gradient(315deg, rgba(var(--dash-mint-rgb), 0.04), transparent 34%),
     var(--drawer-surface);
-  border-color: rgba(93, 63, 73, 0.22);
+  border-color: rgba(0, 0, 0, 0.08);
   box-shadow:
-    -28px 0 80px rgba(120, 88, 98, 0.22),
-    0 28px 80px rgba(120, 88, 98, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    -28px 0 80px rgba(0, 0, 0, 0.1),
+    0 28px 80px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .quiz-detail-drawer.open {
@@ -1436,4 +1792,202 @@
     justify-items: start;
     text-align: left;
   }
+}
+
+/* ==========================================
+   HIGH CONTRAST KBC LIGHT THEME OVERRIDES
+   ========================================== */
+
+/* Brand & Topbar outside white cards in light theme (rendered on light steel-blue backdrop) */
+.theme-light .dashboard-brand {
+  color: #0b1035 !important;
+}
+.theme-light .dashboard-brand span {
+  color: #c46d1c !important;
+  border-color: rgba(196, 109, 28, 0.4) !important;
+  background: rgba(196, 109, 28, 0.08) !important;
+}
+.theme-light .welcome-kicker {
+  color: #c46d1c !important;
+  text-shadow: none !important;
+}
+.theme-light .dashboard-topbar h1 {
+  color: #52609c !important;
+}
+.theme-light .topbar-actions button,
+.theme-light .topbar-actions a {
+  color: #52609c !important;
+  border-color: rgba(196, 109, 28, 0.3) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 10px rgba(10, 17, 69, 0.04);
+}
+.theme-light .topbar-actions button:hover,
+.theme-light .topbar-actions a:hover {
+  color: #0b1035 !important;
+  border-color: #c46d1c !important;
+  background: rgba(196, 109, 28, 0.08) !important;
+  box-shadow: 0 6px 15px rgba(196, 109, 28, 0.15);
+}
+
+/* Card Titles and Text inside cards */
+.theme-light .profile-module h2,
+.theme-light .event-hero h2,
+.theme-light .registered-panel h2,
+.theme-light .quiz-detail-drawer h2,
+.theme-light .event-item-details h3,
+.theme-light .registered-card h3 {
+  color: #050826 !important;
+}
+
+/* Kickers and Badges */
+.theme-light .module-kicker,
+.theme-light .event-status {
+  background: rgba(0, 180, 216, 0.1) !important;
+  border-color: rgba(0, 180, 216, 0.3) !important;
+  color: #0077b6 !important;
+}
+
+/* Secondary Texts and Metadata */
+.theme-light .profile-copy p,
+.theme-light .event-copy p,
+.theme-light .event-item-meta,
+.theme-light .registered-card-meta {
+  color: #4a5482 !important;
+}
+
+/* Profile Module specifically */
+.theme-light .profile-orbit {
+  border-color: rgba(218, 165, 32, 0.4) !important;
+}
+.theme-light .profile-photo {
+  border-color: rgba(212, 175, 55, 0.4) !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(0, 180, 216, 0.15)) !important;
+  color: #050826 !important;
+}
+.theme-light .profile-upload {
+  background: #ffffff !important;
+  border-color: rgba(212, 175, 55, 0.5) !important;
+  color: #050826 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+.theme-light .profile-status-row span {
+  background: rgba(0, 180, 216, 0.08) !important;
+  border-color: rgba(0, 180, 216, 0.2) !important;
+  color: #0077b6 !important;
+}
+.theme-light .last-badge-card {
+  background: linear-gradient(135deg, rgba(7, 10, 46, 0.03), rgba(212, 175, 55, 0.08)) !important;
+  border-color: rgba(212, 175, 55, 0.3) !important;
+}
+.theme-light .last-badge-card span {
+  color: #4a5482 !important;
+}
+.theme-light .last-badge-card strong {
+  color: #8c6a0c !important;
+}
+
+/* KBC Stats Grid inside light theme */
+.theme-light .profile-stat-box {
+  background: rgba(7, 10, 46, 0.03) !important;
+  border-color: rgba(7, 10, 46, 0.08) !important;
+}
+.theme-light .profile-stat-box:hover {
+  background: rgba(212, 175, 55, 0.08) !important;
+  border-color: rgba(212, 175, 55, 0.4) !important;
+}
+.theme-light .stat-label {
+  color: #4a5482 !important;
+}
+.theme-light .stat-value {
+  color: #8c6a0c !important;
+}
+
+/* Event List Items specifically */
+.theme-light .event-list-item {
+  background: rgba(7, 10, 46, 0.03) !important;
+  border-color: rgba(7, 10, 46, 0.08) !important;
+  color: #050826 !important;
+}
+.theme-light .event-list-item:hover {
+  background: rgba(212, 175, 55, 0.08) !important;
+  border-color: rgba(212, 175, 55, 0.5) !important;
+}
+.theme-light .event-item-number {
+  color: rgba(5, 8, 38, 0.12) !important;
+}
+.theme-light .event-list-item:hover .event-item-number {
+  color: #0077b6 !important;
+}
+.theme-light .event-item-action {
+  color: #8c6a0c !important;
+}
+
+/* Registered Cards and Credentials */
+.theme-light .registered-paid-kbc {
+  border: 2px solid rgba(212, 175, 55, 0.6) !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.08), #ffffff) !important;
+  box-shadow: 0 12px 36px rgba(212, 175, 55, 0.15) !important;
+  color: #050826 !important;
+}
+.theme-light .registered-pending-kbc {
+  border: 2px dashed rgba(196, 109, 28, 0.5) !important;
+  background: linear-gradient(135deg, rgba(196, 109, 28, 0.06), #ffffff) !important;
+  color: #050826 !important;
+}
+.theme-light .credential-pill {
+  background: rgba(7, 10, 46, 0.04) !important;
+  border: 1px solid rgba(7, 10, 46, 0.1) !important;
+}
+.theme-light .credential-pill .pill-label {
+  color: #4a5482 !important;
+}
+.theme-light .credential-pill .pill-val {
+  color: #050826 !important;
+}
+.theme-light .registered-paid-kbc .credential-pill {
+  background: rgba(212, 175, 55, 0.08) !important;
+  border: 1px solid rgba(212, 175, 55, 0.3) !important;
+}
+.theme-light .registered-paid-kbc .credential-pill .pill-val {
+  color: #8c6a0c !important;
+}
+
+/* Global low-contrast fixes for credentials pills in light mode */
+.theme-light .player-id-pill .pill-val {
+  color: #127038 !important; /* Rich readable forest green */
+  text-shadow: none !important;
+}
+.theme-light .password-pill .pill-val {
+  color: #8c6a0c !important; /* Premium KBC gold-brown */
+  text-shadow: none !important;
+}
+
+/* High-contrast status badges in light cards */
+.theme-light .text-success {
+  color: #127038 !important;
+  font-weight: bold;
+}
+.theme-light .text-warning {
+  color: #c46d1c !important;
+  font-weight: bold;
+}
+
+/* Buttons in light cards */
+.theme-light .details-btn-card {
+  color: #8c6a0c !important;
+  border-color: rgba(212, 175, 55, 0.5) !important;
+  background: transparent !important;
+}
+.theme-light .details-btn-card:hover {
+  background: rgba(212, 175, 55, 0.08) !important;
+  border-color: rgba(212, 175, 55, 0.8) !important;
+}
+.theme-light .payment-trigger-btn-card {
+  color: #c46d1c !important;
+  border-color: rgba(196, 109, 28, 0.5) !important;
+  background: transparent !important;
+}
+.theme-light .payment-trigger-btn-card:hover {
+  background: rgba(196, 109, 28, 0.08) !important;
+  border-color: #c46d1c !important;
 }
