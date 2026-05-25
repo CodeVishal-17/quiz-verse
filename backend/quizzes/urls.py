@@ -20,6 +20,8 @@ from quizzes.views import (
     HotseatSubmitView,
     HotseatLifelineView,
     HotseatWalkAwayView,
+    HotseatPreselectView,
+    MyQuizRegistrationView,
 )
 
 router = DefaultRouter()
@@ -36,6 +38,7 @@ urlpatterns = [
     path('<int:pk>/', QuizDetailView.as_view(), name='quiz-detail'),
     path('<int:pk>/register/', StudentRegistrationView.as_view(), name='quiz-register'),
     path('<int:pk>/mock-payment/', MockPaymentView.as_view(), name='quiz-mock-payment'),
+    path('<int:pk>/my-registration/', MyQuizRegistrationView.as_view(), name='quiz-my-registration'),
     
     # Quiz attempt flow
     path('<int:pk>/start/', QuizAttemptStartView.as_view(), name='quiz-start'),
@@ -50,6 +53,7 @@ urlpatterns = [
     path('<int:pk>/hotseat-submit/', HotseatSubmitView.as_view(), name='quiz-hotseat-submit'),
     path('<int:pk>/hotseat-lifeline/', HotseatLifelineView.as_view(), name='quiz-hotseat-lifeline'),
     path('<int:pk>/hotseat-walk-away/', HotseatWalkAwayView.as_view(), name='quiz-hotseat-walk-away'),
+    path('<int:pk>/hotseat-preselect/', HotseatPreselectView.as_view(), name='quiz-hotseat-preselect'),
 
     # Router URLs last to avoid overriding specific student routes
     path('', include(router.urls)),

@@ -15,6 +15,7 @@ import {
   getQuizDetails,
   getQuizLiveState,
   getEnrolledStudents,
+  removeRegistration,
   enrollStudentManual,
   bulkEnrollStudents,
   downloadEnrollmentTemplate
@@ -66,6 +67,54 @@ function AdminDashboardPage() {
   const [schools, setSchools] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [selectedManageQuiz, setSelectedManageQuiz] = useState(null);
+  const [manageQuestions, setManageQuestions] = useState([]);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [showAddQuestionForm, setShowAddQuestionForm] = useState(false);
+  const [newQuestionData, setNewQuestionData] = useState({
+    text: '',
+    question_type: 'regular',
+    category: 'General',
+    marks: 1,
+    trivia: '',
+    choices: [
+      { text: '', is_correct: true, correct_order: null },
+      { text: '', is_correct: false, correct_order: null },
+      { text: '', is_correct: false, correct_order: null },
+      { text: '', is_correct: false, correct_order: null }
+    ]
+  });
+
+  useEffect(() => {
+    const isFFF = newQuestionData.question_type.startsWith('fff_');
+    if (isFFF) {
+      if (newQuestionData.choices.length < 8) {
+        const needed = 8 - newQuestionData.choices.length;
+        const extra = Array.from({ length: needed }, (_, i) => ({
+          text: '',
+          is_correct: false,
+          correct_order: newQuestionData.choices.length + i + 1
+        }));
+        setNewQuestionData(prev => ({
+          ...prev,
+          choices: [...prev.choices, ...extra]
+        }));
+      }
+    } else {
+      if (newQuestionData.choices.length !== 4) {
+        setNewQuestionData(prev => ({
+          ...prev,
+          choices: [
+            { text: prev.choices[0]?.text || '', is_correct: true, correct_order: null },
+            { text: prev.choices[1]?.text || '', is_correct: false, correct_order: null },
+            { text: prev.choices[2]?.text || '', is_correct: false, correct_order: null },
+            { text: prev.choices[3]?.text || '', is_correct: false, correct_order: null }
+          ]
+        }));
+      }
+    }
+  }, [newQuestionData.question_type]);
 
   const session = getAuthSession();
   const isLight = theme === 'light';
@@ -92,6 +141,7 @@ function AdminDashboardPage() {
   const [batch1Input, setBatch1Input] = useState('');
   const [batch2Input, setBatch2Input] = useState('');
   const [batch3Input, setBatch3Input] = useState('');
+
 
   // Manage Students States
   const [selectedEnrollQuizId, setSelectedEnrollQuizId] = useState('');
@@ -179,6 +229,24 @@ function AdminDashboardPage() {
     }
   };
 
+  const handleRemoveRegistration = async (registrationId, studentName) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to remove "${studentName}" from this quiz?\n\nThis will also delete their quiz attempt, answers, and FFF submissions. They will be able to re-register.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setEnrollLoading(true);
+      const res = await removeRegistration(selectedEnrollQuizId, registrationId, session?.token);
+      alert(res.detail || 'Registration removed successfully.');
+      fetchEnrolledStudents(selectedEnrollQuizId);
+    } catch (err) {
+      alert(err.message || 'Failed to remove registration.');
+    } finally {
+      setEnrollLoading(false);
+    }
+  };
+
   const handleDownloadEnrollmentTemplate = async () => {
     try {
       setEnrollLoading(true);
@@ -198,33 +266,33 @@ function AdminDashboardPage() {
   };
 
   const KBC_STAGES = [
-    { value: 'regular', label: '1. Preliminary Quiz' },
-    { value: 'batch_selection', label: '2. Batch Configuration' },
-    { value: 'fff_batch_1', label: '3. FFF Batch 1' },
-    { value: 'hotseat_batch_1', label: '4. Hotseat Batch 1' },
-    { value: 'fff_batch_2', label: '5. FFF Batch 2' },
-    { value: 'hotseat_batch_2', label: '6. Hotseat Batch 2' },
-    { value: 'fff_batch_3', label: '7. FFF Batch 3' },
-    { value: 'hotseat_batch_3', label: '8. Hotseat Batch 3' },
-    { value: 'completed', label: '9. Event Completed' }
+    { value: 'regular', label: 'Preliminary Quiz' },
+    { value: 'batch_selection', label: 'Batch Configuration' },
+    { value: 'fff_batch_1', label: 'FFF — Batch 1' },
+    { value: 'fff_batch_2', label: 'FFF — Batch 2' },
+    { value: 'fff_batch_3', label: 'FFF — Batch 3' },
+    { value: 'hotseat_batch_1', label: 'Hotseat — Batch 1' },
+    { value: 'hotseat_batch_2', label: 'Hotseat — Batch 2' },
+    { value: 'hotseat_batch_3', label: 'Hotseat — Batch 3' },
+    { value: 'completed', label: 'Event Completed' }
   ];
 
   const KBC_LADDER = [
-    { q: 15, val: '₹10,000,000', jackpot: true },
-    { q: 14, val: '₹5,000,000' },
-    { q: 13, val: '₹2,500,000' },
-    { q: 12, val: '₹1,250,000' },
-    { q: 11, val: '₹640,000' },
-    { q: 10, val: '₹320,000', checkpoint: true },
-    { q: 9, val: '₹160,000' },
-    { q: 8, val: '₹80,000' },
-    { q: 7, val: '₹40,000' },
-    { q: 6, val: '₹20,000' },
-    { q: 5, val: '₹10,000', checkpoint: true },
-    { q: 4, val: '₹5,000' },
-    { q: 3, val: '₹3,000' },
-    { q: 2, val: '₹2,000' },
-    { q: 1, val: '₹1,000' }
+    { q: 15, val: '150 pts', jackpot: true },
+    { q: 14, val: '140 pts' },
+    { q: 13, val: '130 pts' },
+    { q: 12, val: '120 pts' },
+    { q: 11, val: '110 pts' },
+    { q: 10, val: '100 pts', checkpoint: true },
+    { q: 9, val: '90 pts' },
+    { q: 8, val: '80 pts' },
+    { q: 7, val: '70 pts' },
+    { q: 6, val: '60 pts' },
+    { q: 5, val: '50 pts', checkpoint: true },
+    { q: 4, val: '40 pts' },
+    { q: 3, val: '30 pts' },
+    { q: 2, val: '20 pts' },
+    { q: 1, val: '10 pts' }
   ];
 
   const fetchKbcControllerData = async (quizId) => {
@@ -263,6 +331,8 @@ function AdminDashboardPage() {
       } else {
         setFffResultsData(null);
       }
+
+
     } catch (err) {
       console.error("Error fetching KBC controller data:", err);
     }
@@ -301,6 +371,7 @@ function AdminDashboardPage() {
       setKbcLoading(false);
     }
   };
+
 
   const handleAutoGenerateBatches = async () => {
     try {
@@ -485,9 +556,9 @@ function AdminDashboardPage() {
     }
   };
 
-  const handleDownloadTemplate = async () => {
+  const handleDownloadTemplate = async (type = 'prelim') => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/download_template/`, {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/download_template/?type=${type}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${session?.token}` },
       });
@@ -498,7 +569,7 @@ function AdminDashboardPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'quiz_template.xlsx';
+      a.download = `quiz_template_${type}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -509,19 +580,147 @@ function AdminDashboardPage() {
 
   const handleUploadExcel = async (quizId, file) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const formDataObj = new FormData();
+      formDataObj.append('file', file);
       
       const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${quizId}/upload_questions/`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.token}` },
-        body: formData
+        body: formDataObj
       });
       
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Upload failed');
       
-      alert(data.detail || 'Questions uploaded successfully!');
+      setUploadResult(data);
+      await fetchDashboardData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleManageQuestionsClick = async (quiz) => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${quiz.id}/questions/`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${session?.token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to fetch questions');
+      
+      setManageQuestions(data);
+      setSelectedManageQuiz(quiz);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId) => {
+    if (!window.confirm("Are you sure you want to delete this question? This action cannot be undone.")) return;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/delete_question/`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${session?.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id: questionId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete question');
+      
+      if (selectedManageQuiz) {
+        await handleManageQuestionsClick(selectedManageQuiz);
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleAddQuestionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${selectedManageQuiz.id}/add_question/`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${session?.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newQuestionData)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to add question');
+      
+      alert('Question added successfully!');
+      setNewQuestionData({
+        text: '',
+        question_type: 'regular',
+        category: 'General',
+        marks: 1,
+        trivia: '',
+        choices: [
+          { text: '', is_correct: true, correct_order: null },
+          { text: '', is_correct: false, correct_order: null },
+          { text: '', is_correct: false, correct_order: null },
+          { text: '', is_correct: false, correct_order: null }
+        ]
+      });
+      setShowAddQuestionForm(false);
+      await handleManageQuestionsClick(selectedManageQuiz);
+      await fetchDashboardData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleEditQuestionClick = (question) => {
+    setEditingQuestion(question);
+    setNewQuestionData({
+      id: question.id,
+      text: question.text,
+      question_type: question.question_type,
+      category: question.category,
+      marks: question.marks,
+      trivia: question.trivia,
+      choices: question.choices.map(c => ({
+        text: c.text,
+        is_correct: c.is_correct,
+        correct_order: c.correct_order
+      }))
+    });
+  };
+
+  const handleEditQuestionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/edit_question/`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${session?.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newQuestionData)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to update question');
+      
+      alert('Question updated successfully!');
+      setEditingQuestion(null);
+      setNewQuestionData({
+        text: '',
+        question_type: 'regular',
+        category: 'General',
+        marks: 1,
+        trivia: '',
+        choices: [
+          { text: '', is_correct: true, correct_order: null },
+          { text: '', is_correct: false, correct_order: null },
+          { text: '', is_correct: false, correct_order: null },
+          { text: '', is_correct: false, correct_order: null }
+        ]
+      });
+      await handleManageQuestionsClick(selectedManageQuiz);
     } catch (err) {
       alert(err.message);
     }
@@ -761,10 +960,24 @@ function AdminDashboardPage() {
                 <div style={{display: 'flex', gap: '1rem'}}>
                   <button 
                     className="dash-chip-btn" 
-                    onClick={handleDownloadTemplate}
-                    style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', cursor: 'pointer', padding: '0.8rem 1.5rem', fontSize: '1rem', borderRadius: '4px'}}
+                    onClick={() => handleDownloadTemplate('prelim')}
+                    style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
                   >
-                    DOWNLOAD EXCEL TEMPLATE
+                    📥 PRELIM TEMPLATE (MCQ)
+                  </button>
+                  <button 
+                    className="dash-chip-btn" 
+                    onClick={() => handleDownloadTemplate('fff')}
+                    style={{borderColor: 'rgba(255,215,0,0.4)', color: '#ffd700', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
+                  >
+                    📥 FFF TEMPLATE (SEQ)
+                  </button>
+                  <button 
+                    className="dash-chip-btn" 
+                    onClick={() => handleDownloadTemplate('hotseat')}
+                    style={{borderColor: 'rgba(0,180,216,0.4)', color: '#00b4d8', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
+                  >
+                    📥 HOTSEAT TEMPLATE
                   </button>
                   <button 
                     className="dash-chip-btn" 
@@ -797,6 +1010,13 @@ function AdminDashboardPage() {
                             </div>
                           </div>
                           <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '300px'}}>
+                            <button 
+                              className="dash-chip-btn" 
+                              onClick={() => handleManageQuestionsClick(quiz)}
+                              style={{borderColor: 'rgb(var(--admin-cyan-rgb))', color: 'rgb(var(--admin-cyan-rgb))', background: 'rgba(var(--admin-cyan-rgb), 0.05)'}}
+                            >
+                              Manage Questions
+                            </button>
                             <button 
                               className="dash-chip-btn" 
                               onClick={() => handleEditClick(quiz)}
@@ -909,18 +1129,36 @@ function AdminDashboardPage() {
                       <span className="pulse-dot"></span>
                       SYSTEM LIVE (Polling active)
                     </span>
-                    <button className="kbc-refresh-btn" onClick={() => fetchKbcControllerData(selectedKbcQuizId)}>
+                    <button className="kbc-refresh-btn" onClick={() => fetchKbcControllerData(selectedKbcQuizId)} style={{ marginRight: '0.5rem' }}>
                       Force Sync
                     </button>
+                    <Link 
+                      to={`/quiz-arena/${selectedKbcQuizId}`} 
+                      target="_blank" 
+                      className="kbc-refresh-btn" 
+                      style={{ 
+                        background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)', 
+                        color: '#000', 
+                        border: 'none', 
+                        fontWeight: 'bold',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        textDecoration: 'none',
+                        boxShadow: '0 2px 10px rgba(255, 215, 0, 0.2)'
+                      }}
+                    >
+                      🎙️ Host Showtime (Arena Mode)
+                    </Link>
                   </div>
                 </div>
 
-                <div className="kbc-console-grid">
+                <div className="kbc-console-grid" style={kbcQuizDetail?.current_stage?.startsWith('hotseat_') ? { gridTemplateColumns: '320px 1fr' } : undefined}>
                   {/* Left Column: Stage Controller & Winnings */}
                   <div className="kbc-console-left">
                     <div className="kbc-panel stage-controller-panel">
                       <h3>Stage Controller</h3>
-                      <p className="panel-subtitle">Advance/Select active event stage</p>
+                      <p className="panel-subtitle">Click any stage below to switch — no fixed order required</p>
 
                       {/* Advance Stage Button */}
                       {getNextStageValue(kbcQuizDetail?.current_stage) && (
@@ -949,6 +1187,9 @@ function AdminDashboardPage() {
                           );
                         })}
                       </div>
+                      <p style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--admin-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                        💡 You can run stages in any order — e.g., all 3 FFF rounds first, then hotseat rounds, or alternate as you prefer.
+                      </p>
                     </div>
 
                     {/* Hotseat Info Panel */}
@@ -965,8 +1206,8 @@ function AdminDashboardPage() {
                             <span className="metric-val">{kbcLiveState.hotseat_attempt.player_id}</span>
                           </div>
                           <div className="metric-row">
-                            <span className="metric-lbl">Level Winnings:</span>
-                            <span className="metric-val text-cyan">{KBC_LADDER[15 - kbcLiveState.hotseat_attempt.current_question_index]?.val || '₹0'}</span>
+                            <span className="metric-lbl">Current Score:</span>
+                            <span className="metric-val text-cyan">{kbcLiveState.hotseat_attempt.score} pts</span>
                           </div>
                           <div className="metric-row">
                             <span className="metric-lbl">Status:</span>
@@ -1009,20 +1250,32 @@ function AdminDashboardPage() {
                                 <th>Name</th>
                                 <th>Player ID</th>
                                 <th>Score</th>
+                                <th>Progress</th>
                                 <th>Time Taken</th>
+                                <th>Correct</th>
+                                <th>Incorrect</th>
+                                <th>Status</th>
                               </tr>
                             </thead>
                             <tbody>
                               {prelimScoresList.length === 0 ? (
-                                <tr><td colSpan="5" className="text-center">No submissions yet. Waiting for students to finish...</td></tr>
+                                <tr><td colSpan="9" className="text-center">No submissions yet. Waiting for students to start...</td></tr>
                               ) : (
                                 prelimScoresList.map(score => (
-                                  <tr key={score.student_id}>
+                                  <tr key={score.student_id} className={score.completed ? '' : 'in-progress-row'}>
                                     <td>#{score.rank}</td>
                                     <td className="text-gold">{score.student_name}</td>
                                     <td>{score.player_id}</td>
                                     <td className="text-cyan font-bold">{score.score}</td>
+                                    <td>{score.questions_answered}/{score.total_questions}</td>
                                     <td>{score.time_taken ? `${score.time_taken.toFixed(1)}s` : '-'}</td>
+                                    <td className="text-emerald font-bold">{score.correct_count ?? '-'}</td>
+                                    <td className="text-rose font-bold">{score.incorrect_count ?? '-'}</td>
+                                    <td>
+                                      <span className={`status-pill ${score.completed ? 'completed' : 'in-progress'}`}>
+                                        {score.completed ? '✅ COMPLETED' : '⏳ IN PROGRESS'}
+                                      </span>
+                                    </td>
                                   </tr>
                                 ))
                               )}
@@ -1156,7 +1409,19 @@ function AdminDashboardPage() {
                                       </td>
                                       <td className="text-gold font-bold">{res.student_name}</td>
                                       <td>{res.player_id}</td>
-                                      <td className="font-mono text-cyan">{res.selected_choice_text || 'Choice ID: ' + res.selected_choice}</td>
+                                      <td className="font-mono text-cyan" style={{ fontSize: '0.85rem' }}>
+                                        {(() => {
+                                          if (res.submitted_sequence) {
+                                            const choiceIds = res.submitted_sequence.split(',');
+                                            const arrangedLetters = choiceIds.map(cid => {
+                                              const choiceIndex = fffResultsData.question.choices?.findIndex(c => String(c.id) === cid);
+                                              return choiceIndex !== -1 ? ['A','B','C','D'][choiceIndex] : '?';
+                                            });
+                                            return arrangedLetters.join(' → ');
+                                          }
+                                          return res.selected_choice_text || 'No selection';
+                                        })()}
+                                      </td>
                                       <td className="text-pink font-mono font-bold">{res.time_taken_seconds?.toFixed(3)}s</td>
                                       <td>
                                         {res.is_correct ? (
@@ -1187,48 +1452,82 @@ function AdminDashboardPage() {
 
                     {/* Hotseat Stages */}
                     {kbcQuizDetail?.current_stage.startsWith('hotseat_') && (
-                      <div className="kbc-panel context-panel">
-                        <h3>Hotseat Round Monitor</h3>
-                        <p className="panel-subtitle">Contender climbing the prize ladder. View choices and correct solutions.</p>
+                      <div className="kbc-panel context-panel" style={{ padding: '3rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="kbc-crest" style={{ fontSize: '3rem', color: '#ffd700', marginBottom: '1rem', textShadow: '0 0 15px rgba(255, 215, 0, 0.4)' }}>
+                          🎙️
+                        </div>
+                        <h3 className="golden-glow" style={{ fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>
+                          HOTSEAT SHOWTIME (ARENA MODE)
+                        </h3>
+                        <p className="panel-subtitle" style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', maxWidth: '550px', lineHeight: '1.6', margin: '0 auto 2rem auto' }}>
+                          The Hotseat round for <strong style={{ color: '#ffd700' }}>Batch {kbcQuizDetail.current_stage.slice(-1)}</strong> is now active! Command the show, view contestant preselected choices, read KBC-style trivia, and lock choices using the premium, immersive full-screen Host Arena interface.
+                        </p>
 
-                        {fffResultsData?.question ? (
-                          <div className="hotseat-question-card">
-                            <span className="question-category">Category: {fffResultsData.question.category || 'General'}</span>
-                            <h4 className="hotseat-question-text">{fffResultsData.question.text}</h4>
-                            <div className="hotseat-choices-grid">
-                              {fffResultsData.question.choices?.map(choice => (
-                                <div 
-                                  key={choice.id} 
-                                  className={`hotseat-choice-card ${choice.is_correct ? 'correct' : ''}`}
-                                >
-                                  <span className="choice-lbl">{choice.text}</span>
-                                  {choice.is_correct && <span className="correct-check">✓ CORRECT ANSWER</span>}
-                                </div>
-                              ))}
+                        {kbcLiveState?.hotseat_attempt ? (
+                          <div className="glass-card" style={{
+                            background: 'rgba(255, 215, 0, 0.02)',
+                            border: '1px solid rgba(255, 215, 0, 0.2)',
+                            borderRadius: '12px',
+                            padding: '1.5rem 2rem',
+                            marginBottom: '2rem',
+                            maxWidth: '450px',
+                            width: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.8rem',
+                            textAlign: 'left'
+                          }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '0.5rem', color: '#ffd700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span>👤</span> ACTIVE CONTESTANT PROFILE
+                            </h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Contender:</span>
+                              <strong style={{ color: '#fff' }}>{kbcLiveState.hotseat_attempt.student_name}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Player ID:</span>
+                              <strong style={{ color: 'var(--admin-cyan)' }}>{kbcLiveState.hotseat_attempt.player_id}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Current Level:</span>
+                              <strong style={{ color: '#ff9800' }}>Question {kbcLiveState.hotseat_attempt.current_question_index + 1}</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Current Score:</span>
+                              <strong style={{ color: '#4caf50' }}>{kbcLiveState.hotseat_attempt.score} pts</strong>
                             </div>
                           </div>
                         ) : (
-                          <p className="no-active-msg">No active question loaded yet for this Hotseat batch.</p>
+                          <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '1rem 2rem', borderRadius: '8px', border: '1px dashed rgba(255, 255, 255, 0.15)', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold', marginBottom: '2rem' }}>
+                            ⏳ Awaiting promotion / start of active contestant attempt...
+                          </div>
                         )}
 
-                        <div className="hotseat-checkpoint-info">
-                          <h4>Ladder Progress Timeline</h4>
-                          <div className="ladder-horizontal-timeline">
-                            {KBC_LADDER.slice().reverse().map((level) => {
-                              const isActive = kbcLiveState?.hotseat_attempt?.current_question_index === level.q;
-                              const isPassed = kbcLiveState?.hotseat_attempt?.current_question_index > level.q;
-                              return (
-                                <div 
-                                  key={level.q} 
-                                  className={`ladder-lvl ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${level.checkpoint ? 'checkpoint' : ''}`}
-                                >
-                                  <span className="lvl-num font-mono">Q{level.q}</span>
-                                  <span className="lvl-val font-mono">{level.val}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        <Link 
+                          to={`/quiz-arena/${selectedKbcQuizId}?role=host`} 
+                          target="_blank" 
+                          className="kbc-advance-btn glow-button"
+                          style={{
+                            background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
+                            color: '#000',
+                            fontWeight: '900',
+                            padding: '1.2rem 3.5rem',
+                            fontSize: '1.25rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            boxShadow: '0 6px 25px rgba(255, 215, 0, 0.35)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.6rem',
+                            textDecoration: 'none',
+                            margin: '0 auto'
+                          }}
+                        >
+                          🎙️ ENTER FULL-SCREEN HOST ARENA
+                        </Link>
                       </div>
                     )}
 
@@ -1252,7 +1551,7 @@ function AdminDashboardPage() {
                                 <div className="podium-column podium-silver">
                                   <span className="podium-rank">2nd</span>
                                   <span className="podium-player-name">{players[1]?.name}</span>
-                                  <span className="podium-player-score">₹{players[1]?.score.toLocaleString()}</span>
+                                  <span className="podium-player-score">{players[1]?.score} pts</span>
                                   <div className="podium-bar silver-bar"></div>
                                 </div>
 
@@ -1261,7 +1560,7 @@ function AdminDashboardPage() {
                                   <span className="podium-crown font-mono">👑</span>
                                   <span className="podium-rank">1st</span>
                                   <span className="podium-player-name">{players[0]?.name}</span>
-                                  <span className="podium-player-score">₹{players[0]?.score.toLocaleString()}</span>
+                                  <span className="podium-player-score">{players[0]?.score} pts</span>
                                   <div className="podium-bar gold-bar"></div>
                                 </div>
 
@@ -1269,7 +1568,7 @@ function AdminDashboardPage() {
                                 <div className="podium-column podium-bronze">
                                   <span className="podium-rank">3rd</span>
                                   <span className="podium-player-name">{players[2]?.name}</span>
-                                  <span className="podium-player-score">₹{players[2]?.score.toLocaleString()}</span>
+                                  <span className="podium-player-score">{players[2]?.score} pts</span>
                                   <div className="podium-bar bronze-bar"></div>
                                 </div>
                               </div>
@@ -1280,28 +1579,30 @@ function AdminDashboardPage() {
                     )}
                   </div>
 
-                  {/* Right Column: High-contrast Prize Ladder */}
-                  <div className="kbc-console-right">
-                    <div className="kbc-panel prize-ladder-panel">
-                      <h3>Prize Ladder</h3>
-                      <div className="kbc-ladder-grid">
-                        {KBC_LADDER.map(level => {
-                          const isActive = kbcLiveState?.hotseat_attempt?.current_question_index === level.q;
-                          const isPassed = kbcLiveState?.hotseat_attempt?.current_question_index > level.q;
-                          return (
-                            <div 
-                              key={level.q} 
-                              className={`kbc-ladder-row ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${level.checkpoint ? 'checkpoint' : ''} ${level.jackpot ? 'jackpot' : ''}`}
-                            >
-                              <span className="ladder-q-num font-mono">{level.q}</span>
-                              <span className="ladder-q-sym">♦</span>
-                              <span className="ladder-q-val font-mono">{level.val}</span>
-                            </div>
-                          );
-                        })}
+                  {/* Right Column: High-contrast Prize Ladder (Not shown in Hotseat stages to allow Host card full width) */}
+                  {!kbcQuizDetail?.current_stage?.startsWith('hotseat_') && (
+                    <div className="kbc-console-right">
+                      <div className="kbc-panel prize-ladder-panel">
+                        <h3>Prize Ladder</h3>
+                        <div className="kbc-ladder-grid">
+                          {KBC_LADDER.map(level => {
+                            const isActive = kbcLiveState?.hotseat_attempt?.current_question_index === level.q;
+                            const isPassed = kbcLiveState?.hotseat_attempt?.current_question_index > level.q;
+                            return (
+                              <div 
+                                key={level.q} 
+                                className={`kbc-ladder-row ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${level.checkpoint ? 'checkpoint' : ''} ${level.jackpot ? 'jackpot' : ''}`}
+                              >
+                                <span className="ladder-q-num font-mono">{level.q}</span>
+                                <span className="ladder-q-sym">♦</span>
+                                <span className="ladder-q-val font-mono">{level.val}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1485,15 +1786,17 @@ function AdminDashboardPage() {
                             <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--admin-border)' }}>
                               <th style={{ padding: '1rem' }}>Seq</th>
                               <th style={{ padding: '1rem' }}>Player ID</th>
-                              <th style={{ padding: '1rem' }}>Name</th>
-                              <th style={{ padding: '1rem' }}>Payment Status</th>
+                              <th style={{ padding: '1rem' }}>Name & Email</th>
+                              <th style={{ padding: '1rem' }}>College ID</th>
+                              <th style={{ padding: '1rem' }}>Payment</th>
                               <th style={{ padding: '1rem' }}>Registered At</th>
+                              <th style={{ padding: '1rem', textAlign: 'center' }}>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {enrolledStudents.length === 0 ? (
                               <tr>
-                                <td colSpan="5" className="text-center" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--admin-muted)', fontStyle: 'italic' }}>
+                                <td colSpan="7" className="text-center" style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--admin-muted)', fontStyle: 'italic' }}>
                                   No registered contestants found in this sector yet.<br/>
                                   Use the forms on the left to add students.
                                 </td>
@@ -1509,6 +1812,7 @@ function AdminDashboardPage() {
                                       <span className="roster-email" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>{studentReg.student_email}</span>
                                     </div>
                                   </td>
+                                  <td className="font-mono" style={{ padding: '1rem', fontSize: '0.85rem' }}>{studentReg.college_id || '-'}</td>
                                   <td style={{ padding: '1rem' }}>
                                     <span 
                                       className={`badge-payment ${studentReg.payment_status}`}
@@ -1528,6 +1832,31 @@ function AdminDashboardPage() {
                                   </td>
                                   <td className="font-mono" style={{ padding: '1rem', fontSize: '0.85rem' }}>
                                     {new Date(studentReg.registered_at).toLocaleString()}
+                                  </td>
+                                  <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                    <button
+                                      className="roster-remove-btn"
+                                      onClick={() => handleRemoveRegistration(studentReg.id, studentReg.student_name)}
+                                      disabled={enrollLoading}
+                                      style={{
+                                        background: 'rgba(255, 99, 71, 0.1)',
+                                        border: '1px solid rgba(255, 99, 71, 0.35)',
+                                        color: '#ff6347',
+                                        padding: '0.35rem 0.75rem',
+                                        borderRadius: '4px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '800',
+                                        cursor: enrollLoading ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        fontFamily: 'monospace',
+                                        letterSpacing: '0.03em',
+                                        opacity: enrollLoading ? 0.5 : 1
+                                      }}
+                                      onMouseOver={(e) => { if (!enrollLoading) { e.currentTarget.style.background = 'rgba(255, 99, 71, 0.25)'; e.currentTarget.style.boxShadow = '0 0 10px rgba(255, 99, 71, 0.3)'; }}}
+                                      onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255, 99, 71, 0.1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    >
+                                      🗑️ REMOVE
+                                    </button>
                                   </td>
                                 </tr>
                               ))
@@ -1641,15 +1970,548 @@ function AdminDashboardPage() {
                 </div>
               )}
               
-              <div style={{gridColumn: '1 / -1', marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem'}}>
-                <button type="button" className="admin-btn-cancel" onClick={() => setShowModal(false)}>
-                  CANCEL
+              <div style={{gridColumn: '1 / -1', marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem'}}>
+                {editingQuizId ? (
+                  <button 
+                    type="button" 
+                    className="admin-btn-cancel" 
+                    onClick={() => {
+                      handleDeleteClick(editingQuizId);
+                      setShowModal(false);
+                    }}
+                    style={{
+                      background: 'rgba(255, 80, 80, 0.12)',
+                      borderColor: 'rgba(255, 80, 80, 0.4)',
+                      color: 'rgb(255, 120, 120)',
+                      marginRight: 'auto'
+                    }}
+                  >
+                    DELETE QUIZ
+                  </button>
+                ) : <div />}
+
+                <div style={{display: 'flex', gap: '1rem'}}>
+                  <button type="button" className="admin-btn-cancel" onClick={() => setShowModal(false)}>
+                    CANCEL
+                  </button>
+                  <button type="button" className="admin-btn-draft" onClick={handleSaveDraft} disabled={submitLoading}>
+                    SAVE AS DRAFT
+                  </button>
+                  <button className="dash-chip-btn" type="submit" disabled={submitLoading} style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 2rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
+                    {submitLoading ? 'SAVING...' : (editingQuizId ? 'SAVE CHANGES' : 'CREATE QUIZ')}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {uploadResult && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1050 }}>
+          <div className="admin-modal-content" style={{ maxWidth: '650px', padding: '2.5rem' }}>
+            <button className="admin-modal-close" onClick={() => setUploadResult(null)} type="button">&times;</button>
+            <h3 style={{ color: 'var(--admin-text)', marginBottom: '1.5rem' }}>📊 Question Excel Upload Report</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+              <div style={{ background: 'rgba(56, 176, 0, 0.08)', border: '1px solid rgba(56, 176, 0, 0.3)', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>SUCCESSFULLY ADDED</span>
+                <h2 style={{ color: '#38b000', margin: '0.5rem 0 0 0', fontSize: '2.25rem' }}>{uploadResult.success_count}</h2>
+              </div>
+              <div style={{ background: 'rgba(217, 4, 41, 0.08)', border: '1px solid rgba(217, 4, 41, 0.3)', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>SKIPPED WITH ERRORS</span>
+                <h2 style={{ color: '#d90429', margin: '0.5rem 0 0 0', fontSize: '2.25rem' }}>{uploadResult.error_count}</h2>
+              </div>
+            </div>
+            
+            {uploadResult.error_count > 0 && (
+              <>
+                <h4 style={{ color: 'rgb(255, 120, 120)', marginBottom: '0.5rem', fontFamily: 'monospace' }}>⚠️ Validation Warnings & Errors</h4>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--admin-border)', borderRadius: '6px', background: 'var(--admin-bg-deep)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--admin-surface)', borderBottom: '1px solid var(--admin-border)' }}>
+                        <th style={{ padding: '0.6rem', textAlign: 'center', width: '60px' }}>Row</th>
+                        <th style={{ padding: '0.6rem', textAlign: 'left' }}>Question Text</th>
+                        <th style={{ padding: '0.6rem', textAlign: 'left' }}>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadResult.errors.map((err, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.6rem', textAlign: 'center', color: 'var(--admin-muted)', fontWeight: 'bold' }}>{err.row}</td>
+                          <td style={{ padding: '0.6rem', color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }} title={err.question}>{err.question}</td>
+                          <td style={{ padding: '0.6rem', color: '#ffb703', fontWeight: '500' }}>{err.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="dash-chip-btn" 
+                onClick={() => setUploadResult(null)}
+                style={{ padding: '0.6rem 2.5rem', background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                DISMISS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedManageQuiz && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="admin-modal-content" style={{ maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto', padding: '2.5rem' }}>
+            <button className="admin-modal-close" onClick={() => setSelectedManageQuiz(null)} type="button">&times;</button>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <span className="admin-welcome-kicker">Manage Quiz Event Sector</span>
+                <h3 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--admin-text)' }}>{selectedManageQuiz.title}</h3>
+              </div>
+              <button 
+                type="button" 
+                className="dash-chip-btn" 
+                onClick={() => setShowAddQuestionForm(!showAddQuestionForm)}
+                style={{
+                  background: showAddQuestionForm ? 'rgba(255,255,255,0.08)' : 'rgb(var(--admin-cyan-rgb))',
+                  color: showAddQuestionForm ? 'var(--admin-text)' : '#000',
+                  border: showAddQuestionForm ? '1px solid var(--admin-border)' : 'none',
+                  fontWeight: 'bold'
+                }}
+              >
+                {showAddQuestionForm ? 'Close Manual Creator' : '+ Add Question Manually'}
+              </button>
+            </div>
+
+            {/* Manual Question Creator Form */}
+            {showAddQuestionForm && (
+              <form onSubmit={handleAddQuestionSubmit} style={{ background: 'var(--admin-bg-deep)', border: '1px solid var(--admin-border)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem', display: 'grid', gap: '1.2rem', gridTemplateColumns: '1fr 1fr' }}>
+                <h4 style={{ gridColumn: '1 / -1', margin: 0, color: 'rgb(var(--admin-cyan-rgb))' }}>📝 Add Question Manually</h4>
+                
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className="admin-form-label">Question Text</label>
+                  <textarea 
+                    required 
+                    rows={2} 
+                    className="admin-form-input admin-form-textarea" 
+                    value={newQuestionData.text} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, text: e.target.value })} 
+                  />
+                </div>
+                
+                <div>
+                  <label className="admin-form-label">Question Type</label>
+                  <select 
+                    className="admin-form-input" 
+                    value={newQuestionData.question_type} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, question_type: e.target.value })}
+                  >
+                    <option value="regular">Regular (Preliminary)</option>
+                    <option value="fff_1">Fastest Finger First (Batch 1)</option>
+                    <option value="fff_2">Fastest Finger First (Batch 2)</option>
+                    <option value="fff_3">Fastest Finger First (Batch 3)</option>
+                    <option value="hotseat_1">Hotseat (Batch 1)</option>
+                    <option value="hotseat_2">Hotseat (Batch 2)</option>
+                    <option value="hotseat_3">Hotseat (Batch 3)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="admin-form-label">Category</label>
+                  <input 
+                    type="text" 
+                    className="admin-form-input" 
+                    value={newQuestionData.category} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, category: e.target.value })} 
+                  />
+                </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label className="admin-form-label">Trivia / Explanation</label>
+                  <textarea 
+                    rows={2} 
+                    className="admin-form-input admin-form-textarea" 
+                    value={newQuestionData.trivia} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, trivia: e.target.value })} 
+                  />
+                </div>
+
+                {/* Choices Row */}
+                <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+                  <h5 style={{ gridColumn: '1 / -1', margin: 0, color: 'var(--admin-text)' }}>Options & Correct Answer</h5>
+                  {newQuestionData.choices.map((choice, index) => {
+                    const isFFF = newQuestionData.question_type.startsWith('fff_');
+                    return (
+                      <div key={index} style={{ background: 'var(--admin-surface)', border: '1px solid var(--admin-border)', padding: '0.8rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>Option {String.fromCharCode(65 + index)}</span>
+                        <input 
+                          required 
+                          type="text" 
+                          placeholder="Option Text" 
+                          className="admin-form-input" 
+                          value={choice.text} 
+                          onChange={e => {
+                            const updatedChoices = [...newQuestionData.choices];
+                            updatedChoices[index].text = e.target.value;
+                            setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                          }} 
+                        />
+                        
+                        {!isFFF ? (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--admin-text)', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              name="manual-correct-choice" 
+                              checked={choice.is_correct} 
+                              onChange={() => {
+                                const updatedChoices = newQuestionData.choices.map((c, i) => ({
+                                  ...c,
+                                  is_correct: i === index
+                                }));
+                                setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                              }} 
+                            />
+                            Is Correct Option
+                          </label>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--admin-text)' }}>Sequence Rank:</span>
+                            <select 
+                              className="admin-form-input" 
+                              style={{ padding: '0.2rem 0.5rem', minWidth: '60px' }}
+                              value={choice.correct_order || 1} 
+                              onChange={e => {
+                                const updatedChoices = [...newQuestionData.choices];
+                                updatedChoices[index].correct_order = parseInt(e.target.value);
+                                updatedChoices[index].is_correct = false;
+                                setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                              }}
+                            >
+                              {newQuestionData.choices.map((_, i) => (
+                                <option key={i + 1} value={i + 1}>{i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {newQuestionData.question_type.startsWith('fff_') && (
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                      {newQuestionData.choices.length < 15 && (
+                        <button
+                          type="button"
+                          className="dash-chip-btn"
+                          onClick={() => setNewQuestionData(prev => ({
+                            ...prev,
+                            choices: [...prev.choices, { text: '', is_correct: false, correct_order: prev.choices.length + 1 }]
+                          }))}
+                          style={{ borderColor: 'rgb(var(--admin-cyan-rgb))', color: 'rgb(var(--admin-cyan-rgb))' }}
+                        >
+                          + Add FFF Option ({newQuestionData.choices.length}/15)
+                        </button>
+                      )}
+                      {newQuestionData.choices.length > 8 && (
+                        <button
+                          type="button"
+                          className="dash-chip-btn"
+                          onClick={() => setNewQuestionData(prev => ({
+                            ...prev,
+                            choices: prev.choices.slice(0, -1)
+                          }))}
+                          style={{ borderColor: 'rgb(255, 80, 80)', color: 'rgb(255, 80, 80)' }}
+                        >
+                          - Remove Last Option
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                  <button 
+                    type="button" 
+                    className="admin-btn-cancel" 
+                    onClick={() => setShowAddQuestionForm(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="dash-chip-btn" 
+                    style={{ background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold' }}
+                  >
+                    Save Question
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Questions List */}
+            <h4 style={{ color: 'var(--admin-text)', borderBottom: '1px solid var(--admin-border)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              📋 Loaded Questions ({manageQuestions.length})
+            </h4>
+
+            {manageQuestions.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--admin-muted)', padding: '2rem', fontStyle: 'italic' }}>
+                No questions exist inside this quiz event yet.<br/>
+                Add questions manually or upload an Excel sheet to seed them.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {manageQuestions.map((q, qIndex) => (
+                  <div key={q.id} className="glass-card" style={{ padding: '1.25rem', border: '1px solid var(--admin-border)', background: 'var(--admin-surface)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem', marginBottom: '0.8rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '0.7rem', background: 'rgba(212, 175, 55, 0.15)', borderColor: 'rgba(212, 175, 55, 0.3)', color: '#d4af37', padding: '0.2rem 0.5rem', border: '1px solid', borderRadius: '4px', textTransform: 'uppercase', display: 'inline-block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                          {q.question_type.replace('_', ' ').toUpperCase()} • {q.category}
+                        </span>
+                        <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--admin-text)' }}>
+                          {qIndex + 1}. {q.text}
+                        </h4>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button 
+                          type="button" 
+                          className="dash-chip-btn" 
+                          onClick={() => handleEditQuestionClick(q)}
+                          style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem' }}
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          type="button" 
+                          className="dash-chip-btn" 
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          style={{ fontSize: '0.8rem', padding: '0.3rem 0.8rem', color: '#ff5050', borderColor: 'rgba(255,80,80,0.3)' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Choices render */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem' }}>
+                      {q.choices.map((c, cIndex) => {
+                        const correctHighlight = c.is_correct;
+                        const correctSeq = c.correct_order;
+                        return (
+                          <div 
+                            key={c.id} 
+                            style={{
+                              padding: '0.5rem 0.8rem',
+                              borderRadius: '4px',
+                              background: correctHighlight ? 'rgba(56, 176, 0, 0.08)' : (correctSeq ? 'rgba(212, 175, 55, 0.08)' : 'var(--admin-bg-deep)'),
+                              border: correctHighlight ? '1px solid rgba(56, 176, 0, 0.3)' : (correctSeq ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid var(--admin-border)'),
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <span style={{ color: correctHighlight ? '#38b000' : (correctSeq ? '#d4af37' : 'rgba(255,255,255,0.85)') }}>
+                              <strong>{['A', 'B', 'C', 'D'][cIndex] || cIndex + 1}.</strong> {c.text}
+                            </span>
+                            {correctHighlight && <span style={{ color: '#38b000', fontSize: '0.75rem', fontWeight: 'bold' }}>✓ CORRECT</span>}
+                            {correctSeq && <span style={{ color: '#d4af37', fontSize: '0.75rem', fontWeight: 'bold' }}>RANK {correctSeq}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {q.trivia && (
+                      <p style={{ margin: '0.8rem 0 0 0', fontSize: '0.85rem', color: 'var(--admin-muted)', fontStyle: 'italic', background: 'rgba(255,255,255,0.02)', padding: '0.5rem', borderRadius: '4px', borderLeft: '3px solid var(--admin-border)' }}>
+                        ℹ️ <strong>Explanation:</strong> {q.trivia}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem' }}>
+              <button 
+                type="button" 
+                className="admin-btn-cancel" 
+                onClick={() => setSelectedManageQuiz(null)}
+                style={{ padding: '0.6rem 3rem' }}
+              >
+                DISMISS CONSOLE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingQuestion && (
+        <div className="admin-modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="admin-modal-content" style={{ maxWidth: '650px', padding: '2.5rem' }}>
+            <button className="admin-modal-close" onClick={() => setEditingQuestion(null)} type="button">&times;</button>
+            <h3 style={{ color: 'var(--admin-text)', marginBottom: '1.5rem' }}>📝 Edit Question</h3>
+            
+            <form onSubmit={handleEditQuestionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <label className="admin-form-label">Question Text</label>
+                <textarea 
+                  required 
+                  rows={2} 
+                  className="admin-form-input admin-form-textarea" 
+                  value={newQuestionData.text} 
+                  onChange={e => setNewQuestionData({ ...newQuestionData, text: e.target.value })} 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label className="admin-form-label">Question Type</label>
+                  <select 
+                    className="admin-form-input" 
+                    value={newQuestionData.question_type} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, question_type: e.target.value })}
+                  >
+                    <option value="regular">Regular (Preliminary)</option>
+                    <option value="fff_1">Fastest Finger First (Batch 1)</option>
+                    <option value="fff_2">Fastest Finger First (Batch 2)</option>
+                    <option value="fff_3">Fastest Finger First (Batch 3)</option>
+                    <option value="hotseat_1">Hotseat (Batch 1)</option>
+                    <option value="hotseat_2">Hotseat (Batch 2)</option>
+                    <option value="hotseat_3">Hotseat (Batch 3)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="admin-form-label">Category</label>
+                  <input 
+                    type="text" 
+                    className="admin-form-input" 
+                    value={newQuestionData.category} 
+                    onChange={e => setNewQuestionData({ ...newQuestionData, category: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="admin-form-label">Trivia / Explanation</label>
+                <textarea 
+                  rows={2} 
+                  className="admin-form-input admin-form-textarea" 
+                  value={newQuestionData.trivia} 
+                  onChange={e => setNewQuestionData({ ...newQuestionData, trivia: e.target.value })} 
+                />
+              </div>
+
+              {/* Choices Rendering */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <h5 style={{ gridColumn: '1 / -1', margin: '0.5rem 0 0 0', color: 'var(--admin-text)' }}>Options & Correct Answer</h5>
+                {newQuestionData.choices.map((choice, index) => {
+                  const isFFF = newQuestionData.question_type.startsWith('fff_');
+                  return (
+                    <div key={index} style={{ background: 'var(--admin-surface)', border: '1px solid var(--admin-border)', padding: '0.8rem', borderRadius: '6px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>Option {String.fromCharCode(65 + index)}</span>
+                      <input 
+                        required 
+                        type="text" 
+                        placeholder="Option Text" 
+                        className="admin-form-input" 
+                        value={choice.text} 
+                        onChange={e => {
+                          const updatedChoices = [...newQuestionData.choices];
+                          updatedChoices[index].text = e.target.value;
+                          setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                        }} 
+                      />
+                      
+                      {!isFFF ? (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--admin-text)', cursor: 'pointer' }}>
+                          <input 
+                            type="radio" 
+                            name="edit-correct-choice" 
+                            checked={choice.is_correct} 
+                            onChange={() => {
+                              const updatedChoices = newQuestionData.choices.map((c, i) => ({
+                                ...c,
+                                is_correct: i === index
+                              }));
+                              setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                            }} 
+                          />
+                          Is Correct Option
+                        </label>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--admin-text)' }}>Sequence Rank:</span>
+                          <select 
+                            className="admin-form-input" 
+                            style={{ padding: '0.2rem 0.5rem', minWidth: '60px' }}
+                            value={choice.correct_order || 1} 
+                            onChange={e => {
+                              const updatedChoices = [...newQuestionData.choices];
+                              updatedChoices[index].correct_order = parseInt(e.target.value);
+                              updatedChoices[index].is_correct = false;
+                              setNewQuestionData({ ...newQuestionData, choices: updatedChoices });
+                            }}
+                          >
+                            {newQuestionData.choices.map((_, i) => (
+                              <option key={i + 1} value={i + 1}>{i + 1}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {newQuestionData.question_type.startsWith('fff_') && (
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                    {newQuestionData.choices.length < 15 && (
+                      <button
+                        type="button"
+                        className="dash-chip-btn"
+                        onClick={() => setNewQuestionData(prev => ({
+                          ...prev,
+                          choices: [...prev.choices, { text: '', is_correct: false, correct_order: prev.choices.length + 1 }]
+                        }))}
+                        style={{ borderColor: 'rgb(var(--admin-cyan-rgb))', color: 'rgb(var(--admin-cyan-rgb))' }}
+                      >
+                        + Add FFF Option ({newQuestionData.choices.length}/15)
+                      </button>
+                    )}
+                    {newQuestionData.choices.length > 8 && (
+                      <button
+                        type="button"
+                        className="dash-chip-btn"
+                        onClick={() => setNewQuestionData(prev => ({
+                          ...prev,
+                          choices: prev.choices.slice(0, -1)
+                        }))}
+                        style={{ borderColor: 'rgb(255, 80, 80)', color: 'rgb(255, 80, 80)' }}
+                      >
+                        - Remove Last Option
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem' }}>
+                <button 
+                  type="button" 
+                  className="admin-btn-cancel" 
+                  onClick={() => setEditingQuestion(null)}
+                >
+                  Cancel
                 </button>
-                <button type="button" className="admin-btn-draft" onClick={handleSaveDraft} disabled={submitLoading}>
-                  SAVE AS DRAFT
-                </button>
-                <button className="dash-chip-btn" type="submit" disabled={submitLoading} style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 2rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}>
-                  {submitLoading ? 'SAVING...' : 'CREATE QUIZ'}
+                <button 
+                  type="submit" 
+                  className="dash-chip-btn" 
+                  style={{ background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.6rem 2rem' }}
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

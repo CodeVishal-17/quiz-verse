@@ -107,7 +107,7 @@ class FFFAnswerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FFFAnswer
-        fields = ['id', 'quiz', 'student', 'student_name', 'player_id', 'batch_number', 'question', 'selected_choice', 'time_taken_seconds', 'submitted_at']
+        fields = ['id', 'quiz', 'student', 'student_name', 'player_id', 'batch_number', 'question', 'selected_choice', 'time_taken_seconds', 'submitted_at', 'is_correct', 'submitted_sequence']
         read_only_fields = ['submitted_at']
 
     def get_player_id(self, obj):

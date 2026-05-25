@@ -49,7 +49,7 @@ def seed_kbc_test_event():
     # Helper function to add a question with options
     def add_question(text, q_type, order, category, choices_dict):
         """
-        choices_dict: {"Option text": is_correct_bool, ...}
+        choices_dict: {"Option text": is_correct_bool / correct_order_int, ...}
         """
         q = Question.objects.create(
             quiz=quiz,
@@ -59,12 +59,21 @@ def seed_kbc_test_event():
             category=category,
             marks=1
         )
-        for choice_text, is_correct in choices_dict.items():
-            Choice.objects.create(
-                question=q,
-                text=choice_text,
-                is_correct=is_correct
-            )
+        for choice_text, val in choices_dict.items():
+            if q_type in [Question.QuestionType.FFF_1, Question.QuestionType.FFF_2, Question.QuestionType.FFF_3]:
+                Choice.objects.create(
+                    question=q,
+                    text=choice_text,
+                    is_correct=False,
+                    correct_order=val
+                )
+            else:
+                Choice.objects.create(
+                    question=q,
+                    text=choice_text,
+                    is_correct=val,
+                    correct_order=None
+                )
         return q
 
     # 2. Add 5 Preliminary Questions (regular)
@@ -99,35 +108,35 @@ def seed_kbc_test_event():
     print("Seeding Fastest Finger First (FFF) Questions...")
     # Batch 1 FFF
     add_question(
-        "Arrange these Indian monuments in chronological order of construction: [1] Taj Mahal, [2] Qutub Minar, [3] Gateway of India, [4] Red Fort",
+        "Arrange these Indian monuments in chronological order of construction (earliest first):",
         Question.QuestionType.FFF_1, 1, "History",
         {
-            "2 - 1 - 4 - 3 (Qutub Minar, Taj Mahal, Red Fort, Gateway)": True,
-            "1 - 2 - 3 - 4": False,
-            "2 - 4 - 1 - 3": False,
-            "4 - 3 - 2 - 1": False
+            "Qutub Minar": 1,
+            "Taj Mahal": 2,
+            "Red Fort": 3,
+            "Gateway of India": 4
         }
     )
     # Batch 2 FFF
     add_question(
-        "Arrange these numbers in increasing order: [1] 25, [2] 5, [3] 100, [4] 50",
+        "Arrange these numbers in increasing order:",
         Question.QuestionType.FFF_2, 1, "General",
         {
-            "2 - 1 - 4 - 3 (5, 25, 50, 100)": True,
-            "1 - 2 - 3 - 4": False,
-            "4 - 3 - 2 - 1": False,
-            "2 - 4 - 1 - 3": False
+            "5": 1,
+            "25": 2,
+            "50": 3,
+            "100": 4
         }
     )
     # Batch 3 FFF
     add_question(
-        "Arrange these tech companies by their founding year, earliest first: [1] Microsoft, [2] Apple, [3] Google, [4] Facebook",
+        "Arrange these tech companies by their founding year, earliest first:",
         Question.QuestionType.FFF_3, 1, "Science",
         {
-            "1 - 2 - 3 - 4 (Microsoft, Apple, Google, Facebook)": True,
-            "2 - 1 - 3 - 4": False,
-            "3 - 4 - 2 - 1": False,
-            "4 - 3 - 2 - 1": False
+            "Microsoft": 1,
+            "Apple": 2,
+            "Google": 3,
+            "Facebook": 4
         }
     )
 
