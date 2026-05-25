@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   verifyQuizAccess,
   getQuizLiveState,
@@ -10,7 +10,11 @@ import {
   hotseatWalkAway,
   startQuizAttempt,
   getNextQuestion,
-  submitQuizAnswer
+  submitQuizAnswer,
+  hotseatPreselect,
+  getMyRegistration,
+  hostLockAnswer,
+  getHostHotseatQuestion
 } from '../../api/quizzes';
 import { getAuthSession } from '../../api/auth';
 import './QuizArenaPage.css';
@@ -23,27 +27,28 @@ const SYMBOLS = {
   star: '\u2605',
 };
 
-const PRIZE_MONEY_LADDER = [
-  { level: 15, amount: "₹10,000,000", value: 10000000, checkpoint: true },
-  { level: 14, amount: "₹5,000,000", value: 5000000, checkpoint: false },
-  { level: 13, amount: "₹2,500,000", value: 2500000, checkpoint: false },
-  { level: 12, amount: "₹1,250,000", value: 1250000, checkpoint: false },
-  { level: 11, amount: "₹640,000", value: 640000, checkpoint: false },
-  { level: 10, amount: "₹320,000", value: 320000, checkpoint: true },
-  { level: 9,  amount: "₹160,000", value: 160000, checkpoint: false },
-  { level: 8,  amount: "₹80,000", value: 80000, checkpoint: false },
-  { level: 7,  amount: "₹40,000", value: 40000, checkpoint: false },
-  { level: 6,  amount: "₹20,000", value: 20000, checkpoint: false },
-  { level: 5,  amount: "₹10,000", value: 10000, checkpoint: true },
-  { level: 4,  amount: "₹5,000", value: 5000, checkpoint: false },
-  { level: 3,  amount: "₹3,000", value: 3000, checkpoint: false },
-  { level: 2,  amount: "₹2,000", value: 2000, checkpoint: false },
-  { level: 1,  amount: "₹1,000", value: 1000, checkpoint: false }
+const SCORE_LADDER = [
+  { level: 15, score: 150, checkpoint: true },
+  { level: 14, score: 140, checkpoint: false },
+  { level: 13, score: 130, checkpoint: false },
+  { level: 12, score: 120, checkpoint: false },
+  { level: 11, score: 110, checkpoint: false },
+  { level: 10, score: 100, checkpoint: true },
+  { level: 9,  score: 90, checkpoint: false },
+  { level: 8,  score: 80, checkpoint: false },
+  { level: 7,  score: 70, checkpoint: false },
+  { level: 6,  score: 60, checkpoint: false },
+  { level: 5,  score: 50, checkpoint: true },
+  { level: 4,  score: 40, checkpoint: false },
+  { level: 3,  score: 30, checkpoint: false },
+  { level: 2,  score: 20, checkpoint: false },
+  { level: 1,  score: 10, checkpoint: false }
 ];
 
 function QuizArenaPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const session = getAuthSession();
   const [theme] = useState(() => localStorage.getItem('quizverse-theme') || 'dark');
   const isLight = theme === 'light';
@@ -77,11 +82,13 @@ function QuizArenaPage() {
   const [prelimSelected, setPrelimSelected] = useState(null);
   const [prelimTimeLeft, setPrelimTimeLeft] = useState(90);
   const [prelimSubmitting, setPrelimSubmitting] = useState(false);
+  const [prelimInitialized, setPrelimInitialized] = useState(false);
   const prelimTimerRef = useRef(null);
 
   // FFF States
   const [fffTimeLeft, setFffTimeLeft] = useState(20);
   const [fffSelectedChoice, setFffSelectedChoice] = useState(null);
+  const [fffSelectedSequence, setFffSelectedSequence] = useState([]);
   const [fffAnswered, setFffAnswered] = useState(false);
   const [fffTimeTaken, setFffTimeTaken] = useState(null);
   const fffTimerRef = useRef(null);
@@ -101,8 +108,13 @@ function QuizArenaPage() {
   const [eliminatedChoiceIds, setEliminatedChoiceIds] = useState([]);
   const [pollVotes, setPollVotes] = useState(null);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [pollAnimating, setPollAnimating] = useState(false);
+  const [pollAnimVotes, setPollAnimVotes] = useState({});
+  const pollAnimRef = useRef(null);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
   const [switchCategories, setSwitchCategories] = useState(["Science", "Bollywood", "History", "Sports", "General"]);
+  const [hostHotseatData, setHostHotseatData] = useState(null);
+  const [lockingHotseat, setLockingHotseat] = useState(false);
 
   // Polling intervals reference
   const pollingRef = useRef(null);
@@ -147,6 +159,40 @@ function QuizArenaPage() {
     };
   }, []);
 
+  // Fetch actual registration details on mount to prevent stale localStorage player-id bugs
+  useEffect(() => {
+    const checkRegistration = async () => {
+      try {
+        const token = session?.token;
+        if (!token) return;
+        const reg = await getMyRegistration(id, token);
+        if (reg.registered) {
+          // If the player ID is different from what we had in localStorage, correct it!
+          const storedPlayerId = localStorage.getItem(`quiz-${id}-player-id`);
+          if (storedPlayerId !== reg.player_id) {
+            setPlayerId(reg.player_id);
+            localStorage.setItem(`quiz-${id}-player-id`, reg.player_id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check current registration details:", err);
+      }
+    };
+    checkRegistration();
+  }, [id, session?.token]);
+
+  // Handle auto-role selection from query parameters (for host)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'host' && session?.user?.role === 'admin') {
+      setUserSelectedRole('host');
+      setIsVerified(true);
+      setEntryStage('active');
+      setIsEntered(true);
+    }
+  }, [location.search, session]);
+
   // Poll live state once verified
   useEffect(() => {
     if (isVerified) {
@@ -159,6 +205,11 @@ function QuizArenaPage() {
   // Sync state transitions & FFF timers
   useEffect(() => {
     if (!liveState) return;
+
+    // Initialize preliminary round if stage is regular
+    if (liveState.current_stage === 'regular' && !prelimInitialized && !loading && userSelectedRole !== 'spectator') {
+      initializePrelim();
+    }
 
     const isFffStage = liveState.current_stage.startsWith('fff_batch_');
     if (isFffStage && liveState.is_in_active_batch && !liveState.fff_answered && !fffAnswered) {
@@ -188,9 +239,13 @@ function QuizArenaPage() {
     // Load active hotseat question if hotseat round is active
     const isHotseatStage = liveState.current_stage.startsWith('hotseat_batch_');
     if (isHotseatStage) {
-      loadHotseatQuestion();
+      if (userSelectedRole === 'host') {
+        loadHostHotseatQuestion();
+      } else {
+        loadHotseatQuestion();
+      }
     }
-  }, [liveState]);
+  }, [liveState, prelimQuestion, prelimInitialized, loading, userSelectedRole, fffAnswered]);
 
   const handleSelectParticipant = async () => {
     if (playerId && eventPassword) {
@@ -220,6 +275,12 @@ function QuizArenaPage() {
 
   const handleSelectSpectator = () => {
     setUserSelectedRole('spectator');
+    setIsVerified(true);
+    setEntryStage('active');
+  };
+
+  const handleSelectHost = () => {
+    setUserSelectedRole('host');
     setIsVerified(true);
     setEntryStage('active');
   };
@@ -262,14 +323,8 @@ function QuizArenaPage() {
     try {
       const data = await getQuizLiveState(id, session?.token);
       setLiveState(data);
-      if (data.current_stage === 'regular' && !prelimQuestion && !loading && userSelectedRole !== 'spectator') {
-        // Init prelim round if current stage is regular
-        initializePrelim();
-      }
     } catch (err) {
       setError(err.message || 'Error communicating with Live Arena.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -279,6 +334,7 @@ function QuizArenaPage() {
   const initializePrelim = async () => {
     try {
       setLoading(true);
+      setPrelimInitialized(true);
       await startQuizAttempt(id, session?.token);
       await loadPrelimQuestion();
     } catch (err) {
@@ -297,8 +353,8 @@ function QuizArenaPage() {
         return;
       }
       setPrelimQuestion(data.question);
-      setPrelimTotal(data.total_questions);
-      setPrelimIndex(data.current_index);
+      setPrelimTotal(data.question.total_questions);
+      setPrelimIndex(data.question.current_index);
       setPrelimSelected(null);
       setPrelimTimeLeft(90);
       startPrelimTimer();
@@ -331,7 +387,14 @@ function QuizArenaPage() {
       clearInterval(prelimTimerRef.current);
       const actualTime = timeTaken !== null ? timeTaken : 90 - prelimTimeLeft;
       const res = await submitQuizAnswer(id, choiceId, actualTime, session?.token);
-      setPrelimFeedback(res);
+      
+      // Bypass the trivia screen entirely in round 1 (preliminary round).
+      // Immediately load the next question or set prelimQuestion to null to indicate completion.
+      if (res.completed) {
+        setPrelimQuestion(null);
+      } else {
+        await loadPrelimQuestion();
+      }
     } catch (err) {
       setError('Failed to submit preliminary answer.');
     } finally {
@@ -352,7 +415,23 @@ function QuizArenaPage() {
   // ==========================================
   // FASTEST FINGER FIRST ROUND HANDLERS
   // ==========================================
-  const handleFFFSubmit = async (choiceId) => {
+  const handleFFFChoiceClick = (choiceId) => {
+    if (fffAnswered) return;
+    if (fffSelectedSequence.includes(choiceId)) {
+      // Remove if clicked again
+      setFffSelectedSequence(fffSelectedSequence.filter(id => id !== choiceId));
+    } else {
+      // Add to sequence
+      setFffSelectedSequence([...fffSelectedSequence, choiceId]);
+    }
+  };
+
+  const handleResetFFFSequence = () => {
+    if (fffAnswered) return;
+    setFffSelectedSequence([]);
+  };
+
+  const handleFFFSubmit = async () => {
     if (fffAnswered) return;
     try {
       clearInterval(fffTimerRef.current);
@@ -362,11 +441,12 @@ function QuizArenaPage() {
       const elapsed = ((endTime - fffStartTimeRef.current) / 1000).toFixed(3);
       const seconds = Math.min(20.0, parseFloat(elapsed));
 
-      setFffSelectedChoice(choiceId);
+      const firstChoiceId = fffSelectedSequence[0] || null;
+      setFffSelectedChoice(firstChoiceId);
       setFffAnswered(true);
       setFffTimeTaken(seconds);
 
-      await submitFFFAnswer(id, choiceId, seconds, session?.token);
+      await submitFFFAnswer(id, firstChoiceId, seconds, session?.token, fffSelectedSequence);
     } catch (err) {
       console.error("Error submitting FFF answer: ", err);
     }
@@ -388,9 +468,13 @@ function QuizArenaPage() {
         // Clear choice selection and 50:50 fades ONLY when switching to a NEW question
         if (!hotseatQuestion || hotseatQuestion.id !== data.question.id) {
           setHotseatQuestion(data.question);
-          setSelectedHotseatChoice(null);
+          setSelectedHotseatChoice(data.preselected_choice_id);
           setEliminatedChoiceIds([]);
           setPollVotes(null);
+        } else {
+          if (!submittingHotseat) {
+            setSelectedHotseatChoice(data.preselected_choice_id);
+          }
         }
         setHotseatTotal(data.total_questions);
         setHotseatIndex(data.current_index);
@@ -402,24 +486,55 @@ function QuizArenaPage() {
     }
   };
 
-  const handleHotseatChoiceClick = (choiceId) => {
-    if (liveState?.student_role !== 'hotseat_player' || submittingHotseat) return;
-    if (eliminatedChoiceIds.includes(choiceId)) return; // 50:50 locked out
-    setSelectedHotseatChoice(choiceId);
+  const loadHostHotseatQuestion = async () => {
+    try {
+      const data = await getHostHotseatQuestion(id, session?.token);
+      setHostHotseatData(data);
+      if (data.active && data.question) {
+        setHotseatTotal(data.total_questions);
+        setHotseatIndex(data.current_index);
+        setHotseatScore(data.score);
+      }
+    } catch (err) {
+      console.log("Host Hotseat question not loaded yet or active:", err);
+    }
   };
 
-  const handleConfirmHotseatAnswer = async () => {
-    if (!selectedHotseatChoice || submittingHotseat) return;
+  const handleHostLockAnswer = async () => {
+    if (lockingHotseat) return;
     try {
-      setSubmittingHotseat(true);
-      const res = await submitHotseatAnswer(id, selectedHotseatChoice, session?.token);
-      
-      // Re-load to fetch points updates, checkpoint updates, or completion states
-      await loadHotseatQuestion();
+      setLockingHotseat(true);
+      const res = await hostLockAnswer(id, session?.token);
+      alert(res.message);
+      await loadHostHotseatQuestion();
     } catch (err) {
-      setError(err.message || 'Failed to submit hotseat answer.');
+      alert(err.message || 'Failed to lock hotseat answer.');
     } finally {
-      setSubmittingHotseat(false);
+      setLockingHotseat(false);
+    }
+  };
+
+  const handleLadderLevelClick = (levelQ) => {
+    if (userSelectedRole !== 'host') return;
+    const currentQ = hotseatIndex + 1;
+    if (levelQ > currentQ) {
+      alert(`🚫 You have not reached Question ${levelQ} yet! The contestant is currently playing Question ${currentQ}.`);
+    } else if (levelQ < currentQ) {
+      alert(`ℹ️ Question ${levelQ} has already been completed.`);
+    } else {
+      alert(`✨ Contestant is currently playing Question ${levelQ} for ${SCORE_LADDER.find(l => l.level === levelQ)?.score} pts!`);
+    }
+  };
+
+  const handleHotseatChoiceClick = async (choiceId) => {
+    if (liveState?.student_role !== 'hotseat_player' || submittingHotseat) return;
+    if (eliminatedChoiceIds.includes(choiceId)) return; // 50:50 locked out
+    const newChoiceId = selectedHotseatChoice === choiceId ? null : choiceId;
+    setSelectedHotseatChoice(newChoiceId);
+    try {
+      await hotseatPreselect(id, newChoiceId, session?.token);
+    } catch (err) {
+      console.error("Failed to preselect choice:", err);
     }
   };
 
@@ -459,8 +574,41 @@ function QuizArenaPage() {
     if (liveState?.hotseat_attempt?.lifeline_poll_used) return;
     try {
       const res = await triggerHotseatLifeline(id, 'poll', '', session?.token);
-      setPollVotes(res.votes);
+      const finalVotes = res.votes;
+      setPollVotes(finalVotes);
       setShowPollModal(true);
+      setPollAnimating(true);
+
+      // Start randomizing animation
+      const choiceIds = hotseatQuestion ? hotseatQuestion.choices.map(c => c.id) : Object.keys(finalVotes);
+      let tick = 0;
+      const totalTicks = 35; // ~7 seconds at 200ms intervals
+      pollAnimRef.current = setInterval(() => {
+        tick++;
+        if (tick >= totalTicks) {
+          clearInterval(pollAnimRef.current);
+          pollAnimRef.current = null;
+          setPollAnimVotes(finalVotes);
+          setPollAnimating(false);
+          return;
+        }
+        // Generate random percentages that sum to 100
+        const raws = choiceIds.map(() => Math.random());
+        const sum = raws.reduce((a, b) => a + b, 0);
+        // Blend towards real results as we approach the end
+        const blend = Math.pow(tick / totalTicks, 3);
+        const fakeVotes = {};
+        let assigned = 0;
+        choiceIds.forEach((cid, idx) => {
+          const randomPct = Math.round((raws[idx] / sum) * 100);
+          const realPct = finalVotes[cid] || 0;
+          const blended = Math.round(randomPct * (1 - blend) + realPct * blend);
+          fakeVotes[cid] = idx === choiceIds.length - 1 ? Math.max(0, 100 - assigned) : blended;
+          assigned += fakeVotes[cid];
+        });
+        setPollAnimVotes(fakeVotes);
+      }, 200);
+
       // Update local attempt status
       setLiveState(prev => ({
         ...prev,
@@ -514,7 +662,13 @@ function QuizArenaPage() {
   const renderTopbar = (title, badgeText = null, isTimer = false, timeLeftValue = 0) => {
     const timerWarning = timeLeftValue <= 10;
     const liveCount = liveState?.live_participants || 0;
-    const totalQCount = liveState?.overall_total_questions || liveState?.total_questions || prelimTotal || 0;
+    
+    // For the regular (preliminary) round, display the total regular questions (liveState.total_questions).
+    // Otherwise fallback to overall_total_questions or other metrics.
+    const isRegular = liveState?.current_stage === 'regular';
+    const totalQCount = isRegular
+      ? (liveState?.total_questions || prelimTotal || 0)
+      : (liveState?.overall_total_questions || liveState?.total_questions || prelimTotal || 0);
 
     return (
       <header className="arena-topbar">
@@ -546,9 +700,32 @@ function QuizArenaPage() {
           </div>
         )}
 
-        <button className="btn-exit" onClick={handleExitArena}>
-          🏃 EXIT ARENA
-        </button>
+        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+          {!isFullscreen && (
+            <button 
+              className="btn-fullscreen-toggle" 
+              onClick={enterFullscreen} 
+              style={{
+                background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
+                color: '#000',
+                border: 'none',
+                padding: '0.5rem 1.2rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '900',
+                fontSize: '0.85rem',
+                boxShadow: '0 2px 10px rgba(255, 215, 0, 0.25)',
+                fontFamily: 'monospace',
+                letterSpacing: '0.05em'
+              }}
+            >
+              📺 GO FULLSCREEN
+            </button>
+          )}
+          <button className="btn-exit" onClick={handleExitArena}>
+            🏃 EXIT ARENA
+          </button>
+        </div>
       </header>
     );
   };
@@ -611,6 +788,20 @@ function QuizArenaPage() {
                 <p>Watch the FFF sequence battles, spectate hotseat contestants, and track cash ladders in real-time.</p>
                 <span className="badge-action text-cyan">JOIN TO WATCH ➡️</span>
               </div>
+
+              {/* Host Card (Admins Only) */}
+              {session?.user?.role === 'admin' && (
+                <div 
+                  className="role-selection-card host-card glass-card clickable glow-gold"
+                  onClick={handleSelectHost}
+                  style={{ border: '2px solid #ffd700', background: 'rgba(255, 215, 0, 0.03)' }}
+                >
+                  <div className="role-card-icon">🎙️</div>
+                  <h3 style={{ color: '#ffd700' }}>ENTER AS HOST</h3>
+                  <p>Command the Hotseat event, lock preselected contestant options, reveal correct answers, and read KBC trivia!</p>
+                  <span className="badge-action text-gold" style={{ color: '#ffd700' }}>ENTER CONSOLE ➡️</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -824,7 +1015,7 @@ function QuizArenaPage() {
               <div className="podium-col col-second">
                 <div className="podium-avatar">{podiumArr[1]?.name[0]}</div>
                 <div className="podium-name">{podiumArr[1]?.name}</div>
-                <div className="podium-score">₹{podiumArr[1]?.score.toLocaleString()}</div>
+                <div className="podium-score">{podiumArr[1]?.score} pts</div>
                 <div className="podium-block block-second">
                   <strong>2</strong>
                 </div>
@@ -835,7 +1026,7 @@ function QuizArenaPage() {
                 <div className="winner-crown">👑</div>
                 <div className="podium-avatar winner-glow">{podiumArr[0]?.name[0]}</div>
                 <div className="podium-name">{podiumArr[0]?.name}</div>
-                <div className="podium-score winner-text">₹{podiumArr[0]?.score.toLocaleString()}</div>
+                <div className="podium-score winner-text">{podiumArr[0]?.score} pts</div>
                 <div className="podium-block block-first">
                   <strong>1</strong>
                 </div>
@@ -845,7 +1036,7 @@ function QuizArenaPage() {
               <div className="podium-col col-third">
                 <div className="podium-avatar">{podiumArr[2]?.name[0]}</div>
                 <div className="podium-name">{podiumArr[2]?.name}</div>
-                <div className="podium-score">₹{podiumArr[2]?.score.toLocaleString()}</div>
+                <div className="podium-score">{podiumArr[2]?.score} pts</div>
                 <div className="podium-block block-third">
                   <strong>3</strong>
                 </div>
@@ -976,7 +1167,6 @@ function QuizArenaPage() {
 
           <div className="arena-header-row">
             <span>Question {prelimIndex + 1} of {prelimTotal}</span>
-            <span className="arena-marks-kicker">{prelimQuestion.marks} Marks</span>
           </div>
 
           {prelimFeedback ? (
@@ -985,11 +1175,11 @@ function QuizArenaPage() {
                 <span className={`trivia-grade-badge ${prelimFeedback.correct ? 'correct' : 'incorrect'}`}>
                   {prelimFeedback.correct ? 'CORRECT! 🚀' : 'INCORRECT ❌'}
                 </span>
-                <span className="trivia-category">Category: {prelimQuestion.category || "General"}</span>
+                <span className="trivia-category">Category: {prelimFeedback.questionCategory}</span>
               </div>
               
               <div className="trivia-question-summary">
-                <h3>{prelimQuestion.text}</h3>
+                <h3>{prelimFeedback.questionText}</h3>
                 <div className="trivia-answer-check">
                   <span className="label">Correct Answer:</span>
                   <strong className="correct-value">{prelimFeedback.correct_choice?.text || 'N/A'}</strong>
@@ -1080,7 +1270,7 @@ function QuizArenaPage() {
                 <div className="arena-choices-grid">
                   {liveState.fff_question.choices.map((c, idx) => (
                     <div key={c.id} className="arena-choice-btn disabled">
-                      <div className="choice-indicator">{['A','B','C','D'][idx]}</div>
+                      <div className="choice-indicator">{['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'][idx] || idx + 1}</div>
                       <div className="choice-text">{c.text}</div>
                     </div>
                   ))}
@@ -1111,7 +1301,7 @@ function QuizArenaPage() {
               <div className="glass-card text-center glow-blue" style={{maxWidth: '500px', padding: '3rem'}}>
                 <div className="lock-icon">🔒</div>
                 <h2 className="golden-glow">ANSWER SECURED</h2>
-                <p>Your arrangement choice was transmitted in <strong className="winner-text">{fffTimeTaken}s</strong>!</p>
+                <p>Your arrangement sequence was transmitted in <strong className="winner-text">{fffTimeTaken}s</strong>!</p>
                 <p className="helper-text">Stay tuned. Admin will display the speed standings once all contestants have completed.</p>
               </div>
             </div>
@@ -1119,7 +1309,7 @@ function QuizArenaPage() {
             <>
               <div className="glass-card panel-intro text-center">
                 <h3 className="winner-text">ACCURACY & SPEED MATTERS!</h3>
-                <p>Click the option showing the correct sequence arrangement immediately to lock-in your time.</p>
+                <p>Click the options in the correct sequence order from 1 to {liveState.fff_question.choices.length}. Click again to remove.</p>
               </div>
 
               <article className="arena-question-card glass-card glow-pink">
@@ -1127,16 +1317,67 @@ function QuizArenaPage() {
               </article>
 
               <div className="arena-choices-grid">
-                {liveState.fff_question.choices.map((choice, i) => (
-                  <button 
-                    key={choice.id}
-                    className="arena-choice-btn fff-btn glow-glow"
-                    onClick={() => handleFFFSubmit(choice.id)}
-                  >
-                    <div className="choice-indicator">{['A','B','C','D'][i]}</div>
-                    <div className="choice-text">{choice.text}</div>
-                  </button>
-                ))}
+                {liveState.fff_question.choices.map((choice, i) => {
+                  const seqIndex = fffSelectedSequence.indexOf(choice.id);
+                  const isSelected = seqIndex !== -1;
+                  return (
+                    <button 
+                      key={choice.id}
+                      className={`arena-choice-btn fff-btn glow-glow ${isSelected ? 'fff-selected-kbc' : ''}`}
+                      onClick={() => handleFFFChoiceClick(choice.id)}
+                    >
+                      <div className="choice-indicator">
+                        {isSelected ? (
+                          <span className="fff-order-badge">{seqIndex + 1}</span>
+                        ) : (
+                          ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'][i] || i + 1
+                        )}
+                      </div>
+                      <div className="choice-text">{choice.text}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="fff-controls-row" style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginTop: '2.5rem' }}>
+                <button
+                  type="button"
+                  className="prelim-reset-btn"
+                  onClick={handleResetFFFSequence}
+                  disabled={fffSelectedSequence.length === 0}
+                  style={{
+                    background: 'rgba(255, 100, 100, 0.12)',
+                    borderColor: 'rgba(255, 100, 100, 0.4)',
+                    color: 'rgb(255, 150, 150)',
+                    padding: '0.8rem 2rem',
+                    borderRadius: '8px',
+                    fontFamily: 'monospace',
+                    fontWeight: '900',
+                    letterSpacing: '0.08em',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s'
+                  }}
+                >
+                  RESET ARRANGEMENT
+                </button>
+                
+                <button
+                  type="button"
+                  className="enter-arena-btn-card"
+                  onClick={handleFFFSubmit}
+                  disabled={fffSelectedSequence.length !== liveState.fff_question.choices.length}
+                  style={{
+                    padding: '0.8rem 3rem',
+                    borderRadius: '8px',
+                    fontFamily: 'monospace',
+                    fontWeight: '900',
+                    letterSpacing: '0.1em',
+                    cursor: fffSelectedSequence.length === liveState.fff_question.choices.length ? 'pointer' : 'not-allowed',
+                    opacity: fffSelectedSequence.length === liveState.fff_question.choices.length ? 1 : 0.45
+                  }}
+                >
+                  LOCK IN ARRANGEMENT &rarr;
+                </button>
               </div>
             </>
           ) : (
@@ -1154,6 +1395,150 @@ function QuizArenaPage() {
   if (isHotseatStage) {
     const activeBatch = liveState.current_stage.slice(-1);
     
+    // View if user is hosting in Amitabh Bachchan Mode
+    if (userSelectedRole === 'host') {
+      const activeContestantName = hostHotseatData?.contestant_name || `Contestant`;
+      const currentContestantScore = hostHotseatData?.score || 0;
+      const progressLevel = hostHotseatData?.current_index || 0;
+
+      return (
+        <main className={`arena-page ${isLight ? 'theme-light' : 'theme-dark'}`}>
+          <div className="arena-background">
+            <div className="arena-orb orb-pink" />
+            <div className="arena-orb orb-cyan" />
+          </div>
+          {renderTopbar(`🎙️ LIVE HOTSEAT SHOW: HOST MODE`, "HOST CONSOLE")}
+
+          <div className="hotseat-layout">
+            {/* Left Panel: Active replica board with host controls */}
+            <div className="hotseat-console-panel">
+              {/* Display Screen */}
+              <div className="active-question-section">
+                <div className="glass-card panel-intro text-center glow-gold" style={{ border: '1px solid #ffd700', background: 'rgba(255, 215, 0, 0.02)' }}>
+                  <h3>Contestant: <strong className="winner-text">{activeContestantName}</strong></h3>
+                  <p>Current Score: <strong className="winner-text">{currentContestantScore} pts</strong></p>
+                </div>
+
+                {hostHotseatData?.active && hostHotseatData?.question ? (
+                  <>
+                    {/* Trivia Note Box */}
+                    {hostHotseatData.question.trivia && (
+                      <div className="host-trivia-note-box glass-card glow-cyan" style={{ border: '1px solid rgba(0, 188, 212, 0.3)', background: 'rgba(0, 188, 212, 0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', width: '100%', boxSizing: 'border-box' }}>
+                        <h4 style={{ color: 'var(--admin-cyan)', marginTop: 0, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          💡 HOST TRIVIA NOTE (KBC Style)
+                        </h4>
+                        <p style={{ fontSize: '0.9rem', margin: 0, color: 'rgba(255, 255, 255, 0.95)', fontStyle: 'italic', lineHeight: '1.4' }}>
+                          "{hostHotseatData.question.trivia}"
+                        </p>
+                      </div>
+                    )}
+
+                    <span className="question-category-tag">CATEGORY: {hostHotseatData.question.category || 'General'}</span>
+                    <article className="arena-question-card glass-card kbc-question-frame" style={{ border: '2px solid rgba(255, 215, 0, 0.25)', background: 'rgba(255, 215, 0, 0.01)' }}>
+                      <h2>{hostHotseatData.question.text}</h2>
+                    </article>
+
+                    <div className="kbc-choices-grid">
+                      {hostHotseatData.question.choices.map((choice, i) => {
+                        const isCorrect = choice.is_correct;
+                        const isPreselected = hostHotseatData.preselected_choice_id === choice.id;
+
+                        return (
+                          <div 
+                            key={choice.id}
+                            className={`arena-choice-btn kbc-choice disabled ${isCorrect ? 'correct' : ''} ${isPreselected ? 'selected' : ''}`}
+                            style={{
+                              border: isPreselected ? '2px solid #ff9800' : isCorrect ? '2px dashed #4caf50' : '1px solid var(--admin-border)',
+                              background: isPreselected ? 'rgba(255, 152, 0, 0.1)' : isCorrect ? 'rgba(76, 175, 80, 0.05)' : 'rgba(0,0,0,0.2)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div className="choice-indicator">{['A','B','C','D'][i]}</div>
+                              <div className="choice-text">{choice.text}</div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              {isCorrect && <span style={{ color: '#4caf50', fontSize: '0.75rem', fontWeight: '900' }}>✓ CORRECT</span>}
+                              {isPreselected && (
+                                <span className="blinking" style={{ background: '#ff9800', color: '#000', fontSize: '0.65rem', fontWeight: '900', padding: '0.1rem 0.3rem', borderRadius: '3px' }}>
+                                  PLAYER SELECTED
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Host Lock Control */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2.5rem' }}>
+                      {hostHotseatData.preselected_choice_id ? (
+                        <button 
+                          className="btn-submit glow-button" 
+                          onClick={handleHostLockAnswer}
+                          disabled={lockingHotseat}
+                          style={{
+                            background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
+                            color: '#000',
+                            fontWeight: '900',
+                            padding: '1rem 3.5rem',
+                            fontSize: '1.25rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 20px rgba(255, 215, 0, 0.3)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                          }}
+                        >
+                          {lockingHotseat ? '🔐 LOCKING ANSWER...' : '🔐 LOCK ANSWER (Check Correctness)'}
+                        </button>
+                      ) : (
+                        <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '1rem 3rem', borderRadius: '8px', border: '1px dashed rgba(255, 255, 255, 0.2)', color: 'rgba(255,255,255,0.6)', fontWeight: 'bold' }}>
+                          ⏳ WAITING FOR CONTESTANT TO PRE-SELECT AN OPTION...
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="glass-card text-center" style={{ padding: '4rem' }}>
+                    <h2 className="golden-glow">🎙️ CONSOLE ACTIVE</h2>
+                    <p style={{ fontSize: '1.1rem' }}>No active contestant in the hotseat or awaiting the start of next question.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Panel: Interactive Ladder progress timeline */}
+            <div className="hotseat-ladder-panel glass-card">
+              <h3 className="ladder-header golden-glow" style={{ fontSize: '1.1rem', letterSpacing: '0.05em' }}>SCORE LADDER (HOST)</h3>
+              <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: '-0.5rem', marginBottom: '1rem' }}>Click to inspect constraints</p>
+              <div className="ladder-list">
+                {SCORE_LADDER.map((step, idx) => {
+                  const isActive = step.level === (progressLevel + 1);
+                  const isPassed = step.level <= progressLevel;
+                  return (
+                    <div 
+                      key={step.level} 
+                      className={`ladder-step ${isActive ? 'active' : ''} ${isPassed ? 'passed' : ''} ${step.checkpoint ? 'checkpoint' : ''}`}
+                      onClick={() => handleLadderLevelClick(step.level)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <span className="step-num">{step.level}</span>
+                      <span className="step-score">{step.score} pts</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </main>
+      );
+    }
+
     // View if player is the actual Hotseat Contestant
     if (liveState.student_role === 'hotseat_player') {
       if (hotseatCompleted) {
@@ -1164,8 +1549,8 @@ function QuizArenaPage() {
                 <span className="arena-status">Hotseat Finished</span>
                 <h2 className="golden-glow">Round Concluded</h2>
                 <div className="arena-score-display">
-                  <span className="score-kicker">Final Winnings</span>
-                  <strong>₹{hotseatScore.toLocaleString()}</strong>
+                  <span className="score-kicker">Final Score</span>
+                  <strong>{hotseatScore} pts</strong>
                 </div>
                 <p>Status: {hotseatStatus === 'walked_away' ? 'Walked Away Safely' : hotseatStatus === 'failed' ? 'Incorrect Answer (Checkpoint Drop)' : 'Completed'}</p>
                 <p>Waiting for the admin to transition to the next event stage...</p>
@@ -1248,27 +1633,19 @@ function QuizArenaPage() {
                   })}
                 </div>
 
-                <div className="hotseat-action-row">
+                <div className="hotseat-action-row" style={{ justifyContent: 'center' }}>
                   <button className="btn-walkaway glow-red" onClick={handleWalkAway} disabled={submittingHotseat}>
-                    🏃 WALK AWAY (Lock Winnings)
-                  </button>
-
-                  <button 
-                    className="btn-submit glow-button" 
-                    onClick={handleConfirmHotseatAnswer}
-                    disabled={!selectedHotseatChoice || submittingHotseat}
-                  >
-                    {submittingHotseat ? 'LOCKING ANSWER...' : 'CONFIRM & LOCK CHOICE'}
+                    🏃 WALK AWAY (Lock Current Score)
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Right Panel: Prize Ladder */}
+            {/* Right Panel: Score Ladder */}
             <div className="hotseat-ladder-panel glass-card">
-              <h3 className="ladder-header golden-glow">KBC SCORE LADDER</h3>
+              <h3 className="ladder-header golden-glow">SCORE LADDER</h3>
               <div className="ladder-list">
-                {PRIZE_MONEY_LADDER.map((step, idx) => {
+                {SCORE_LADDER.map((step, idx) => {
                   const isCurrent = step.level === (hotseatIndex + 1);
                   const isPassed = step.level <= hotseatIndex;
                   return (
@@ -1277,8 +1654,7 @@ function QuizArenaPage() {
                       className={`ladder-step ${isCurrent ? 'active' : ''} ${isPassed ? 'passed' : ''} ${step.checkpoint ? 'checkpoint' : ''}`}
                     >
                       <span className="step-num">{step.level}</span>
-                      <span className="step-diamond">♦</span>
-                      <span className="step-amount">{step.amount}</span>
+                      <span className="step-score">{step.score} pts</span>
                     </div>
                   );
                 })}
@@ -1288,25 +1664,47 @@ function QuizArenaPage() {
 
           {/* Audience Poll Modal */}
           {showPollModal && pollVotes && (
-            <div className="modal-overlay" onClick={() => setShowPollModal(false)}>
-              <div className="modal-content glass-card glow-blue" onClick={(e) => e.stopPropagation()}>
-                <h2 className="golden-glow">AUDIENCE POLL RESULTS</h2>
+            <div className="modal-overlay">
+              <div className="modal-content poll-modal glass-card glow-blue" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', padding: '2.5rem' }}>
+                <h2 className="golden-glow" style={{ marginBottom: '0.5rem' }}>
+                  {pollAnimating ? 'COLLECTING VOTES...' : 'AUDIENCE POLL RESULTS'}
+                </h2>
+                {pollAnimating && (
+                  <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '1.5rem', animation: 'pulse 1.2s infinite' }}>
+                    📊 Audience members are submitting their votes...
+                  </p>
+                )}
                 <div className="poll-chart-container">
                   {hotseatQuestion.choices.map((choice, i) => {
-                    const percentage = pollVotes[choice.id] || 0;
+                    const displayVotes = pollAnimating ? pollAnimVotes : pollVotes;
+                    const percentage = (displayVotes && displayVotes[choice.id]) || 0;
+                    const isHighest = !pollAnimating && percentage === Math.max(...Object.values(pollVotes));
                     return (
                       <div key={choice.id} className="poll-bar-col">
                         <div className="poll-bar-wrapper">
-                          <div className="poll-bar-fill" style={{ height: `${percentage}%` }}>
+                          <div
+                            className={`poll-bar-fill ${isHighest && !pollAnimating ? 'poll-bar-winner' : ''}`}
+                            style={{
+                              height: `${percentage}%`,
+                              transition: pollAnimating ? 'height 0.15s linear' : 'height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                              background: isHighest && !pollAnimating
+                                ? 'linear-gradient(180deg, #ffd700, #ff8c00)'
+                                : undefined
+                            }}
+                          >
                             <span className="poll-pct">{percentage}%</span>
                           </div>
                         </div>
-                        <div className="poll-bar-label">Choice {['A','B','C','D'][i]}</div>
+                        <div className="poll-bar-label" style={{ fontWeight: isHighest && !pollAnimating ? '900' : '600', color: isHighest && !pollAnimating ? '#ffd700' : undefined }}>
+                          {['A','B','C','D','E','F','G','H'][i] || i + 1}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-                <button className="btn-submit" onClick={() => setShowPollModal(false)}>Close Modal</button>
+                {!pollAnimating && (
+                  <button className="btn-submit" onClick={() => setShowPollModal(false)} style={{ marginTop: '1.5rem' }}>CLOSE RESULTS</button>
+                )}
               </div>
             </div>
           )}
@@ -1370,13 +1768,13 @@ function QuizArenaPage() {
             <div className="active-question-section">
               <div className="glass-card panel-intro text-center glow-blue">
                 <h3>Contestant: <strong className="winner-text">{activeContestantName}</strong></h3>
-                <p>Current Winnings: <strong className="winner-text">₹{currentContestantScore.toLocaleString()}</strong></p>
+                <p>Current Score: <strong className="winner-text">{currentContestantScore} pts</strong></p>
               </div>
 
               {liveState.hotseat_attempt?.status !== 'playing' ? (
                 <div className="glass-card text-center" style={{padding: '3rem'}}>
                   <h2 className="golden-glow">HOTSEAT COMPLETED</h2>
-                  <p>Contestant run has concluded. Final winnings: <strong>₹{currentContestantScore.toLocaleString()}</strong></p>
+                  <p>Contestant run has concluded. Final score: <strong>{currentContestantScore} pts</strong></p>
                   <p className="helper-text">Waiting for organizer to select next batch or conclude event.</p>
                 </div>
               ) : hotseatQuestion ? (
@@ -1408,9 +1806,9 @@ function QuizArenaPage() {
 
           {/* Right Panel: replica ladder */}
           <div className="hotseat-ladder-panel glass-card">
-            <h3 className="ladder-header golden-glow">KBC SCORE LADDER</h3>
+            <h3 className="ladder-header golden-glow">SCORE LADDER</h3>
             <div className="ladder-list">
-              {PRIZE_MONEY_LADDER.map((step, idx) => {
+              {SCORE_LADDER.map((step, idx) => {
                 const isCurrent = step.level === (progressLevel + 1);
                 const isPassed = step.level <= progressLevel;
                 return (
@@ -1419,8 +1817,7 @@ function QuizArenaPage() {
                     className={`ladder-step ${isCurrent ? 'active' : ''} ${isPassed ? 'passed' : ''} ${step.checkpoint ? 'checkpoint' : ''}`}
                   >
                     <span className="step-num">{step.level}</span>
-                    <span className="step-diamond">♦</span>
-                    <span className="step-amount">{step.amount}</span>
+                    <span className="step-score">{step.score} pts</span>
                   </div>
                 );
               })}

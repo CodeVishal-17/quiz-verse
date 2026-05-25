@@ -170,6 +170,7 @@ class Choice(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="choices")
     text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
+    correct_order = models.IntegerField(blank=True, null=True, help_text="1-indexed position in correct sequence (e.g., 1, 2, 3...)")
 
     def __str__(self):
         return f"{self.text} ({'Correct' if self.is_correct else 'Incorrect'})"
@@ -229,6 +230,8 @@ class FFFAnswer(models.Model):
     selected_choice = models.ForeignKey(Choice, on_delete=models.CASCADE, null=True, blank=True)
     time_taken_seconds = models.FloatField(default=0.0)
     submitted_at = models.DateTimeField(auto_now_add=True)
+    is_correct = models.BooleanField(default=False)
+    submitted_sequence = models.TextField(blank=True, default="", help_text="Comma-separated choice IDs in ordered sequence")
 
     class Meta:
         constraints = [
@@ -257,6 +260,9 @@ class HotseatAttempt(models.Model):
     lifeline_5050_used = models.BooleanField(default=False)
     lifeline_poll_used = models.BooleanField(default=False)
     lifeline_switch_used = models.BooleanField(default=False)
+    
+    # Pre-selected choice (visible to admin host before locking)
+    preselected_choice = models.ForeignKey('Choice', null=True, blank=True, on_delete=models.SET_NULL, related_name='hotseat_preselections')
     
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)

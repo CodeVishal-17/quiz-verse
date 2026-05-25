@@ -25,7 +25,15 @@ function App() {
       <Route
         path="/quiz/:id/play"
         element={
-          <ProtectedRoute allowedRoles={['student']}>
+          <ProtectedRoute allowedRoles={['student', 'admin']}>
+            <QuizArenaPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/quiz-arena/:id"
+        element={
+          <ProtectedRoute allowedRoles={['student', 'admin']}>
             <QuizArenaPage />
           </ProtectedRoute>
         }

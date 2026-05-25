@@ -132,11 +132,19 @@ export function getQuizLiveState(id, token) {
   return request(`/quizzes/${id}/live-state/`, { method: 'GET' }, token);
 }
 
-export function submitFFFAnswer(id, choiceId, timeTakenSeconds, token) {
+export function submitFFFAnswer(id, choiceId, timeTakenSeconds, token, selectedSequence = []) {
   return request(`/quizzes/${id}/fff-submit/`, {
     method: 'POST',
-    body: JSON.stringify({ choice_id: choiceId, time_taken_seconds: timeTakenSeconds }),
+    body: JSON.stringify({ 
+      choice_id: choiceId, 
+      time_taken_seconds: timeTakenSeconds, 
+      selected_sequence: selectedSequence 
+    }),
   }, token);
+}
+
+export function getMyRegistration(id, token) {
+  return request(`/quizzes/${id}/my-registration/`, { method: 'GET' }, token);
 }
 
 export function getHotseatQuestion(id, token) {
@@ -159,6 +167,13 @@ export function triggerHotseatLifeline(id, lifelineType, category = '', token) {
 
 export function hotseatWalkAway(id, token) {
   return request(`/quizzes/${id}/hotseat-walk-away/`, { method: 'POST' }, token);
+}
+
+export function hotseatPreselect(id, choiceId, token) {
+  return request(`/quizzes/${id}/hotseat-preselect/`, {
+    method: 'POST',
+    body: JSON.stringify({ choice_id: choiceId }),
+  }, token);
 }
 
 // ==========================================
@@ -194,8 +209,23 @@ export function getPrelimScores(id, token) {
   return request(`/quizzes/admin/${id}/prelim_scores/`, { method: 'GET' }, token);
 }
 
+export function getHostHotseatQuestion(id, token) {
+  return request(`/quizzes/admin/${id}/host_hotseat_question/`, { method: 'GET' }, token);
+}
+
+export function hostLockAnswer(id, token) {
+  return request(`/quizzes/admin/${id}/host_lock_answer/`, { method: 'POST' }, token);
+}
+
 export function getEnrolledStudents(quizId, token) {
   return request(`/quizzes/admin/${quizId}/enrolled_students/`, { method: 'GET' }, token);
+}
+
+export function removeRegistration(quizId, registrationId, token) {
+  return request(`/quizzes/admin/${quizId}/remove_registration/`, {
+    method: 'POST',
+    body: JSON.stringify({ registration_id: registrationId }),
+  }, token);
 }
 
 export function enrollStudentManual(quizId, payload, token) {

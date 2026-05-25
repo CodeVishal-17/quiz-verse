@@ -525,6 +525,33 @@
   box-shadow: 0 0 15px rgba(236, 72, 153, 0.2);
 }
 
+.fff-selected-kbc {
+  border-color: #d4af37 !important;
+  background: rgba(212, 175, 55, 0.08) !important;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.28) !important;
+  transform: scale(1.02) translateY(-2px);
+}
+
+.fff-order-badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  background: #d4af37;
+  color: #000;
+  font-family: monospace;
+  font-weight: 900;
+  font-size: 0.85rem;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
+  animation: popBadge 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popBadge {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
 .lock-icon {
   font-size: 3.5rem;
   margin-bottom: 1.5rem;
@@ -674,8 +701,7 @@
 }
 
 .kbc-choice.eliminated {
-  opacity: 0.1;
-  cursor: not-allowed;
+  visibility: hidden;
   pointer-events: none;
 }
 
@@ -772,6 +798,14 @@
 .step-diamond {
   margin: 0 0.8rem;
   font-size: 0.7rem;
+}
+
+.step-score {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fbbf24;
+  font-family: monospace;
 }
 
 .step-amount {
@@ -1419,4 +1453,44 @@
     min-height: auto;
     padding: 2rem;
   }
+}
+
+/* KBC Cinematic Full-Screen Poll Modal */
+.modal-content.poll-modal {
+  max-width: 95%;
+  width: 950px;
+  padding: 4rem;
+}
+
+.modal-content.poll-modal .poll-chart-container {
+  height: 450px;
+  margin: 3rem 0;
+  border-bottom-width: 3px;
+  padding-bottom: 1.5rem;
+}
+
+.modal-content.poll-modal .poll-bar-col {
+  width: 150px;
+}
+
+.modal-content.poll-modal .poll-bar-wrapper {
+  height: 380px;
+  width: 75px;
+  border-radius: 10px;
+  border-width: 2px;
+}
+
+.modal-content.poll-modal .poll-pct {
+  top: -32px;
+  font-size: 1.25rem;
+}
+
+.modal-content.poll-modal .poll-bar-label {
+  font-size: 1.2rem;
+  margin-top: 1.2rem;
+}
+
+.modal-content.poll-modal h2 {
+  font-size: 2.8rem;
+  letter-spacing: 0.05em;
 }

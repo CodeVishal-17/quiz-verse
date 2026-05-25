@@ -51,11 +51,72 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def download_template(self, request):
+        template_type = request.query_params.get('type', 'prelim').strip().lower()
+        
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Quiz Template"
         
-        headers = ['Question Text', 'Option A', 'Option B', 'Option C', 'Option D', 'Correct Option (A/B/C/D)', 'Marks', 'Question Type (regular/fff_1/fff_2/fff_3/hotseat_1/hotseat_2/hotseat_3)', 'Category (e.g. Science/Bollywood/Sports)', 'Trivia (Explanation/Fun Facts)']
+        if template_type == 'fff':
+            ws.title = "FFF Sequencing Template"
+            headers = [
+                'Question Text', 'Option A', 'Option B', 'Option C', 'Option D', 
+                'Correct Sequence (e.g. CADB)', 'Marks', 
+                'Question Type (fff_1/fff_2/fff_3)', 'Category', 'Trivia'
+            ]
+            sample_row = [
+                "Arrange these Indian monuments in chronological order of construction (earliest first):",
+                "Taj Mahal",
+                "Red Fort",
+                "Qutub Minar",
+                "Gateway of India",
+                "CADB",
+                1,
+                "fff_1",
+                "History",
+                "Qutub Minar (1199) -> Taj Mahal (1632) -> Red Fort (1638) -> Gateway of India (1911)."
+            ]
+            filename = "fff_sequencing_template.xlsx"
+        elif template_type == 'hotseat':
+            ws.title = "Hotseat MCQ Template"
+            headers = [
+                'Question Text', 'Option A', 'Option B', 'Option C', 'Option D', 
+                'Correct Option (A/B/C/D)', 'Marks', 
+                'Question Type (hotseat_1/hotseat_2/hotseat_3)', 'Category', 'Trivia'
+            ]
+            sample_row = [
+                "What is the chemical formula of Table Salt?",
+                "HCl",
+                "H2O",
+                "NaCl",
+                "CO2",
+                "C",
+                1,
+                "hotseat_1",
+                "Science",
+                "NaCl stands for Sodium Chloride which is common table salt."
+            ]
+            filename = "hotseat_quiz_template.xlsx"
+        else:
+            ws.title = "Preliminary MCQ Template"
+            headers = [
+                'Question Text', 'Option A', 'Option B', 'Option C', 'Option D', 
+                'Correct Option (A/B/C/D)', 'Marks', 
+                'Question Type (regular)', 'Category', 'Trivia'
+            ]
+            sample_row = [
+                "What is the capital of France?",
+                "London",
+                "Berlin",
+                "Paris",
+                "Madrid",
+                "C",
+                1,
+                "regular",
+                "General",
+                "Paris is the most populous city of France and has been one of Europe's major centres of finance, diplomacy, commerce, fashion, science and arts since the 17th century."
+            ]
+            filename = "preliminary_quiz_template.xlsx"
+            
         ws.append(headers)
         
         header_font = Font(bold=True)
@@ -64,18 +125,6 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             cell.font = header_font
             cell.fill = header_fill
             
-        sample_row = [
-            "What is the capital of France?",
-            "London",
-            "Berlin",
-            "Paris",
-            "Madrid",
-            "C",
-            1,
-            "regular",
-            "General",
-            "Paris is the most populous city of France and has been one of Europe's major centres of finance, diplomacy, commerce, fashion, science and arts since the 17th century."
-        ]
         ws.append(sample_row)
         
         for col in ws.columns:
@@ -88,9 +137,9 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 except:
                     pass
             ws.column_dimensions[column].width = min(max_length + 2, 50)
-
+            
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename="quiz_template.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         wb.save(response)
         return response
 
@@ -113,44 +162,249 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 return Response({"detail": "No questions found in Excel file."}, status=status.HTTP_400_BAD_REQUEST)
                 
             created_count = 0
+            error_count = 0
+            error_log = []
+            seen_questions = set()
             
-            with transaction.atomic():
-                quiz.questions.all().delete()
+            max_order = quiz.questions.aggregate(Max('order'))['order__max'] or 0
+            
+            for idx, row in enumerate(rows[1:], start=2):
+                if not row or not any(row):
+                    continue
+                    
+                text = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ''
+                if not text:
+                    error_log.append({"row": idx, "question": f"Row {idx}", "reason": "Question text is missing."})
+                    error_count += 1
+                    continue
+                    
+                if quiz.questions.filter(text=text).exists():
+                    error_log.append({"row": idx, "question": text[:40], "reason": "Question text already exists in this quiz."})
+                    error_count += 1
+                    continue
+                    
+                if text in seen_questions:
+                    error_log.append({"row": idx, "question": text[:40], "reason": "Question text is duplicated inside the Excel file."})
+                    error_count += 1
+                    continue
+                seen_questions.add(text)
+                # Detect Excel template format dynamically (Old 10-column vs New 21-column)
+                is_old_format = True
                 
-                for idx, row in enumerate(rows[1:], start=1):
-                    if not row or not row[0]:
-                        continue
-                        
-                    text = str(row[0]).strip()
-                    opt_a = str(row[1]).strip() if len(row) > 1 and row[1] else ''
-                    opt_b = str(row[2]).strip() if len(row) > 2 and row[2] else ''
-                    opt_c = str(row[3]).strip() if len(row) > 3 and row[3] else ''
-                    opt_d = str(row[4]).strip() if len(row) > 4 and row[4] else ''
-                    correct_opt = str(row[5]).strip().upper() if len(row) > 5 and row[5] else 'A'
+                # Check if row[18] is a valid question type
+                if len(row) > 18 and str(row[18]).strip().lower() in Question.QuestionType.values:
+                    is_old_format = False
+                elif len(row) > 7 and str(row[7]).strip().lower() in Question.QuestionType.values:
+                    is_old_format = True
+                else:
+                    # Fallback default: if the row has more than 12 columns, assume new format
+                    is_old_format = (len(row) < 12)
+                
+                if is_old_format:
+                    # Old 10-column format
+                    opt_a = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ''
+                    opt_b = str(row[2]).strip() if len(row) > 2 and row[2] is not None else ''
+                    opt_c = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ''
+                    opt_d = str(row[4]).strip() if len(row) > 4 and row[4] is not None else ''
+                    
+                    raw_options = [opt_a, opt_b, opt_c, opt_d] + [''] * 11
+                    
+                    correct_opt = str(row[5]).strip() if len(row) > 5 and row[5] is not None else 'A'
                     marks = int(row[6]) if len(row) > 6 and row[6] is not None else 1
                     q_type = str(row[7]).strip().lower() if len(row) > 7 and row[7] else 'regular'
                     category = str(row[8]).strip() if len(row) > 8 and row[8] else 'General'
                     trivia = str(row[9]).strip() if len(row) > 9 and row[9] is not None else ''
+                else:
+                    # New 21-column format
+                    raw_options = []
+                    for o_idx in range(15):
+                        col_val = str(row[1 + o_idx]).strip() if len(row) > (1 + o_idx) and row[1 + o_idx] is not None else ''
+                        raw_options.append(col_val)
+                        
+                    correct_opt = str(row[16]).strip() if len(row) > 16 and row[16] is not None else 'A'
+                    marks = int(row[17]) if len(row) > 17 and row[17] is not None else 1
+                    q_type = str(row[18]).strip().lower() if len(row) > 18 and row[18] else 'regular'
+                    category = str(row[19]).strip() if len(row) > 19 and row[19] else 'General'
+                    trivia = str(row[20]).strip() if len(row) > 20 and row[20] is not None else ''
+                
+                # Filter out trailing empty options to find the non-empty option set
+                non_empty_options = [o for o in raw_options if o]
+                num_options = len(non_empty_options)
+                
+                # Ensure options are contiguous without gaps (only check up to num_options)
+                has_gap = False
+                for idx_opt in range(num_options):
+                    if not raw_options[idx_opt]:
+                        has_gap = True
+                        break
+                if has_gap:
+                    error_log.append({"row": idx, "question": text[:40], "reason": "Options must be contiguous starting from Option A without empty slots."})
+                    error_count += 1
+                    continue
+                
+                if q_type not in Question.QuestionType.values:
+                    q_type = 'regular'
+                
+                # Validation checks specific to FFF vs regular MCQ
+                if q_type.startswith('fff_'):
+                    if num_options < 8 or num_options > 15:
+                        error_log.append({"row": idx, "question": text[:40], "reason": f"Fastest Finger First questions must have between 8 and 15 options. Got {num_options}."})
+                        error_count += 1
+                        continue
                     
-                    if q_type not in Question.QuestionType.values:
-                        q_type = 'regular'
+                    clean_seq = [ch.upper() for ch in correct_opt if ch.isalpha()]
+                    expected_letters = [chr(ord('A') + i) for i in range(num_options)]
                     
+                    if len(clean_seq) != num_options or set(clean_seq) != set(expected_letters):
+                        error_log.append({"row": idx, "question": text[:40], "reason": f"Correct sequence for FFF must specify exactly the non-empty option letters A to {chr(ord('A') + num_options - 1)} in order (case-insensitive). Got '{correct_opt}'."})
+                        error_count += 1
+                        continue
+                    
+                    seq_map = {letter: rank for rank, letter in enumerate(clean_seq, 1)}
+                else:
+                    # MCQ strictly requires exactly 4 options
+                    if num_options != 4:
+                        error_log.append({"row": idx, "question": text[:40], "reason": f"Standard MCQ / Preliminary / Hotseat questions must have exactly 4 options. Got {num_options}."})
+                        error_count += 1
+                        continue
+                    
+                    correct_opt_upper = correct_opt.upper()
+                    expected_letters = ['A', 'B', 'C', 'D']
+                    if correct_opt_upper not in expected_letters:
+                        error_log.append({"row": idx, "question": text[:40], "reason": f"Correct option letter '{correct_opt}' is invalid. Must be A, B, C, or D (case-insensitive)."})
+                        error_count += 1
+                        continue
+                
+                with transaction.atomic():
                     question = Question.objects.create(
-                        quiz=quiz, text=text, order=idx, marks=marks,
+                        quiz=quiz, text=text, order=max_order + created_count + 1, marks=marks,
                         question_type=q_type, category=category, trivia=trivia
                     )
                     
-                    if opt_a: Choice.objects.create(question=question, text=opt_a, is_correct=(correct_opt == 'A'))
-                    if opt_b: Choice.objects.create(question=question, text=opt_b, is_correct=(correct_opt == 'B'))
-                    if opt_c: Choice.objects.create(question=question, text=opt_c, is_correct=(correct_opt == 'C'))
-                    if opt_d: Choice.objects.create(question=question, text=opt_d, is_correct=(correct_opt == 'D'))
+                    if q_type.startswith('fff_'):
+                        for letter_idx, letter in enumerate([chr(ord('A') + i) for i in range(num_options)]):
+                            Choice.objects.create(
+                                question=question,
+                                text=raw_options[letter_idx],
+                                is_correct=False,
+                                correct_order=seq_map[letter]
+                            )
+                    else:
+                        for letter_idx, letter in enumerate(expected_letters):
+                            Choice.objects.create(
+                                question=question,
+                                text=raw_options[letter_idx],
+                                is_correct=(correct_opt_upper == letter),
+                                correct_order=None
+                            )
                     
-                    created_count += 1
-                    
-            return Response({"detail": f"Successfully imported {created_count} questions."})
+                created_count += 1
+                
+            return Response({
+                "detail": f"Successfully imported {created_count} questions.",
+                "success_count": created_count,
+                "error_count": error_count,
+                "errors": error_log
+            })
             
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def questions(self, request, pk=None):
+        quiz = self.get_object()
+        questions = quiz.questions.all().prefetch_related('choices')
+        
+        data = []
+        for q in questions:
+            choices_data = []
+            for c in q.choices.all():
+                choices_data.append({
+                    "id": c.id,
+                    "text": c.text,
+                    "is_correct": c.is_correct,
+                    "correct_order": c.correct_order
+                })
+            data.append({
+                "id": q.id,
+                "text": q.text,
+                "order": q.order,
+                "marks": q.marks,
+                "question_type": q.question_type,
+                "category": q.category,
+                "trivia": q.trivia,
+                "choices": choices_data
+            })
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def add_question(self, request, pk=None):
+        quiz = self.get_object()
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response({"detail": "Question text is required."}, status=400)
+            
+        q_type = request.data.get('question_type', 'regular')
+        category = request.data.get('category', 'General')
+        marks = int(request.data.get('marks', 1))
+        trivia = request.data.get('trivia', '')
+        choices_data = request.data.get('choices', [])
+        
+        max_order = quiz.questions.aggregate(Max('order'))['order__max'] or 0
+        
+        with transaction.atomic():
+            question = Question.objects.create(
+                quiz=quiz, text=text, order=max_order + 1,
+                marks=marks, question_type=q_type, category=category, trivia=trivia
+            )
+            for c in choices_data:
+                Choice.objects.create(
+                    question=question,
+                    text=c.get('text', '').strip(),
+                    is_correct=c.get('is_correct', False),
+                    correct_order=c.get('correct_order')
+                )
+        return Response({"detail": "Question added successfully.", "id": question.id})
+
+    @action(detail=False, methods=['post'])
+    def edit_question(self, request):
+        question_id = request.data.get('id')
+        question = get_object_or_404(Question, id=question_id)
+        
+        text = request.data.get('text', '').strip()
+        if not text:
+            return Response({"detail": "Question text is required."}, status=400)
+            
+        q_type = request.data.get('question_type', 'regular')
+        category = request.data.get('category', 'General')
+        marks = int(request.data.get('marks', 1))
+        trivia = request.data.get('trivia', '')
+        choices_data = request.data.get('choices', [])
+        
+        with transaction.atomic():
+            question.text = text
+            question.question_type = q_type
+            question.category = category
+            question.marks = marks
+            question.trivia = trivia
+            question.save()
+            
+            question.choices.all().delete()
+            for c in choices_data:
+                Choice.objects.create(
+                    question=question,
+                    text=c.get('text', '').strip(),
+                    is_correct=c.get('is_correct', False),
+                    correct_order=c.get('correct_order')
+                )
+        return Response({"detail": "Question updated successfully."})
+
+    @action(detail=False, methods=['post'])
+    def delete_question(self, request):
+        question_id = request.data.get('id')
+        question = get_object_or_404(Question, id=question_id)
+        question.delete()
+        return Response({"detail": "Question deleted successfully."})
 
     @action(detail=True, methods=['post'])
     def update_stage(self, request, pk=None):
@@ -161,6 +415,179 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         quiz.current_stage = stage
         quiz.save(update_fields=['current_stage'])
         return Response(QuizSerializer(quiz).data)
+
+    @action(detail=True, methods=['get'])
+    def host_hotseat_question(self, request, pk=None):
+        """Admin host view: see current question with correct answers, trivia, and contestant's preselection."""
+        quiz = self.get_object()
+        stage = quiz.current_stage
+        
+        hotseat_player = None
+        batch_num = None
+        q_type = None
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+            q_type = Question.QuestionType.HOTSEAT_1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+            q_type = Question.QuestionType.HOTSEAT_2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+            q_type = Question.QuestionType.HOTSEAT_3
+        else:
+            return Response({"active": False, "detail": "No hotseat stage active."})
+        
+        if not hotseat_player:
+            return Response({"active": False, "detail": "No hotseat player promoted."})
+        
+        attempt = HotseatAttempt.objects.filter(quiz=quiz, student=hotseat_player, batch_number=batch_num).first()
+        if not attempt:
+            return Response({"active": False, "detail": "No hotseat attempt found."})
+        
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({
+                "active": False, "completed": True,
+                "status": attempt.status, "score": attempt.score,
+                "contestant_name": hotseat_player.full_name
+            })
+        
+        questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+        if attempt.current_question_index >= len(questions):
+            return Response({"active": False, "completed": True, "status": "completed", "score": attempt.score})
+        
+        question = questions[attempt.current_question_index]
+        choices = list(question.choices.all())
+        
+        return Response({
+            "active": True,
+            "current_index": attempt.current_question_index,
+            "total_questions": len(questions),
+            "score": attempt.score,
+            "contestant_name": hotseat_player.full_name,
+            "preselected_choice_id": attempt.preselected_choice_id,
+            "lifelines": {
+                "5050_used": attempt.lifeline_5050_used,
+                "poll_used": attempt.lifeline_poll_used,
+                "switch_used": attempt.lifeline_switch_used
+            },
+            "question": {
+                "id": question.id,
+                "text": question.text,
+                "category": question.category,
+                "trivia": question.trivia,
+                "choices": [{"id": c.id, "text": c.text, "is_correct": c.is_correct} for c in choices]
+            }
+        })
+
+    @action(detail=True, methods=['post'])
+    def host_lock_answer(self, request, pk=None):
+        """Admin host action: lock the contestant's preselected answer and process scoring."""
+        quiz = self.get_object()
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+            q_type = Question.QuestionType.HOTSEAT_1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+            q_type = Question.QuestionType.HOTSEAT_2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+            q_type = Question.QuestionType.HOTSEAT_3
+        else:
+            return Response({"detail": "No hotseat stage active."}, status=400)
+        
+        if not hotseat_player:
+            return Response({"detail": "No hotseat player promoted."}, status=400)
+        
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=hotseat_player, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt already completed."}, status=400)
+        
+        questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+        if attempt.current_question_index >= len(questions):
+            return Response({"detail": "All questions completed."}, status=400)
+        
+        question = questions[attempt.current_question_index]
+        choice_id = attempt.preselected_choice_id
+        if not choice_id:
+            return Response({"detail": "Contestant has not selected any option yet."}, status=400)
+        
+        selected_choice = Choice.objects.filter(question=question, id=choice_id).first()
+        is_correct = selected_choice.is_correct if selected_choice else False
+        correct_choice = Choice.objects.filter(question=question, is_correct=True).first()
+        
+        if is_correct:
+            current_points = SCORE_LADDER[attempt.current_question_index] if attempt.current_question_index < len(SCORE_LADDER) else 0
+            attempt.score = current_points
+            attempt.current_question_index += 1
+            attempt.preselected_choice = None
+            
+            completed = attempt.current_question_index >= len(questions)
+            if completed:
+                attempt.status = HotseatAttempt.Status.COMPLETED
+                attempt.completed_at = timezone.now()
+                self._host_save_score(quiz, batch_num, attempt.score, "completed")
+            else:
+                self._host_save_score(quiz, batch_num, attempt.score, "playing")
+            
+            attempt.save()
+            return Response({
+                "correct": True,
+                "correct_choice_id": correct_choice.id if correct_choice else None,
+                "selected_choice_id": choice_id,
+                "current_points": attempt.score,
+                "next_index": attempt.current_question_index,
+                "completed": completed,
+                "trivia": question.trivia,
+                "message": f"All {len(questions)} questions completed! Final score: {attempt.score} pts" if completed else f"Correct! {hotseat_player.full_name} has reached Question {attempt.current_question_index + 1}!"
+            })
+        else:
+            checkpoint_score = 0
+            fail_index = attempt.current_question_index
+            if fail_index >= 10:
+                checkpoint_score = 100
+            elif fail_index >= 5:
+                checkpoint_score = 50
+            
+            attempt.score = checkpoint_score
+            attempt.status = HotseatAttempt.Status.FAILED
+            attempt.completed_at = timezone.now()
+            attempt.preselected_choice = None
+            attempt.save()
+            
+            self._host_save_score(quiz, batch_num, attempt.score, "failed")
+            
+            return Response({
+                "correct": False,
+                "correct_choice_id": correct_choice.id if correct_choice else None,
+                "selected_choice_id": choice_id,
+                "checkpoint_points": checkpoint_score,
+                "completed": True,
+                "trivia": question.trivia,
+                "message": f"Incorrect! The correct answer was '{correct_choice.text if correct_choice else 'N/A'}'. Score drops to checkpoint: {checkpoint_score} pts"
+            })
+
+    def _host_save_score(self, quiz, batch_num, score, status_str):
+        if batch_num == 1:
+            quiz.hotseat_score_1 = score
+            quiz.hotseat_status_1 = status_str
+            quiz.save(update_fields=['hotseat_score_1', 'hotseat_status_1'])
+        elif batch_num == 2:
+            quiz.hotseat_score_2 = score
+            quiz.hotseat_status_2 = status_str
+            quiz.save(update_fields=['hotseat_score_2', 'hotseat_status_2'])
+        elif batch_num == 3:
+            quiz.hotseat_score_3 = score
+            quiz.hotseat_status_3 = status_str
+            quiz.save(update_fields=['hotseat_score_3', 'hotseat_status_3'])
 
     @action(detail=True, methods=['post'])
     def set_batches(self, request, pk=None):
@@ -214,7 +641,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         serialized = FFFAnswerSerializer(answers, many=True).data
         
         for ans_data, ans_obj in zip(serialized, answers):
-            ans_data['is_correct'] = ans_obj.selected_choice.is_correct if ans_obj.selected_choice else False
+            ans_data['is_correct'] = ans_obj.is_correct or (ans_obj.selected_choice.is_correct if ans_obj.selected_choice else False)
             
         serialized.sort(key=lambda x: (not x['is_correct'], x['time_taken_seconds']))
         
@@ -256,17 +683,40 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def prelim_scores(self, request, pk=None):
         quiz = self.get_object()
-        attempts = QuizAttempt.objects.filter(quiz=quiz, completed_at__isnull=False).select_related('student').order_by('-score', 'completed_at')
+        # Fetch all attempts (both completed and in-progress), ordered by:
+        # 1. Completed first, then in-progress
+        # 2. Higher score first
+        # 3. Earlier completion time first (for completed attempts)
+        from django.db.models import Case, When, Value, IntegerField
+        attempts = QuizAttempt.objects.filter(quiz=quiz).select_related('student').annotate(
+            completion_order=Case(
+                When(completed_at__isnull=False, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField()
+            )
+        ).order_by('completion_order', '-score', 'completed_at')
+        
+        total_regular_questions = quiz.questions.filter(question_type=Question.QuestionType.REGULAR).count()
+        
         data = []
         for idx, att in enumerate(attempts, 1):
             reg = QuizRegistration.objects.filter(quiz=quiz, student=att.student).first()
+            answers = att.answers.select_related('selected_choice').all()
+            correct_count = sum(1 for ans in answers if ans.selected_choice and ans.selected_choice.is_correct)
+            incorrect_count = sum(1 for ans in answers if not ans.selected_choice or not ans.selected_choice.is_correct)
+            is_completed = att.completed_at is not None
             data.append({
                 "rank": idx,
                 "student_id": att.student.id,
                 "student_name": att.student.full_name,
                 "player_id": reg.player_id if reg else "",
                 "score": att.score,
-                "time_taken": (att.completed_at - att.started_at).total_seconds() if att.completed_at and att.started_at else None
+                "time_taken": (att.completed_at - att.started_at).total_seconds() if att.completed_at and att.started_at else None,
+                "correct_count": correct_count,
+                "incorrect_count": incorrect_count,
+                "completed": is_completed,
+                "questions_answered": att.current_question_index,
+                "total_questions": total_regular_questions
             })
         return Response(data)
 
@@ -276,6 +726,69 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         registrations = quiz.registrations.select_related('student').all()
         serializer = EnrolledStudentSerializer(registrations, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def remove_registration(self, request, pk=None):
+        quiz = self.get_object()
+        registration_id = request.data.get('registration_id')
+        if not registration_id:
+            return Response({"detail": "registration_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        reg = QuizRegistration.objects.filter(id=registration_id, quiz=quiz).first()
+        if not reg:
+            return Response({"detail": "Registration not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        student = reg.student
+        
+        # Delete any associated quiz attempt and answers so the student can start fresh
+        QuizAttempt.objects.filter(quiz=quiz, student=student).delete()
+        
+        # Delete FFF answers if any
+        FFFAnswer.objects.filter(quiz=quiz, student=student).delete()
+        
+        # Delete Hotseat attempts if any
+        HotseatAttempt.objects.filter(quiz=quiz, student=student).delete()
+        
+        # Clear hotseat player references on the quiz if this student was assigned
+        update_fields = []
+        if quiz.hotseat_player_1 == student:
+            quiz.hotseat_player_1 = None
+            quiz.hotseat_status_1 = ""
+            update_fields.extend(['hotseat_player_1', 'hotseat_status_1'])
+        if quiz.hotseat_player_2 == student:
+            quiz.hotseat_player_2 = None
+            quiz.hotseat_status_2 = ""
+            update_fields.extend(['hotseat_player_2', 'hotseat_status_2'])
+        if quiz.hotseat_player_3 == student:
+            quiz.hotseat_player_3 = None
+            quiz.hotseat_status_3 = ""
+            update_fields.extend(['hotseat_player_3', 'hotseat_status_3'])
+        
+        # Remove student from batch player lists
+        if student.id in quiz.batch_1_players:
+            quiz.batch_1_players.remove(student.id)
+            if 'batch_1_players' not in update_fields:
+                update_fields.append('batch_1_players')
+        if student.id in quiz.batch_2_players:
+            quiz.batch_2_players.remove(student.id)
+            if 'batch_2_players' not in update_fields:
+                update_fields.append('batch_2_players')
+        if student.id in quiz.batch_3_players:
+            quiz.batch_3_players.remove(student.id)
+            if 'batch_3_players' not in update_fields:
+                update_fields.append('batch_3_players')
+        
+        if update_fields:
+            quiz.save(update_fields=update_fields)
+        
+        # Delete the registration itself
+        reg.delete()
+        
+        return Response({
+            "detail": f"Registration for {student.full_name} has been fully removed. All quiz data (attempts, answers, hotseat, FFF) has been cleared. They can now re-register.",
+            "removed_student_name": student.full_name,
+            "removed_student_email": student.email
+        })
 
     @action(detail=True, methods=['post'])
     def enroll_student_manual(self, request, pk=None):
@@ -518,6 +1031,23 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         return response
 
 
+class MyQuizRegistrationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        reg = QuizRegistration.objects.filter(quiz=quiz, student=request.user).first()
+        if not reg:
+            return Response({"registered": False})
+        return Response({
+            "registered": True,
+            "id": reg.id,
+            "player_id": reg.player_id,
+            "payment_status": reg.payment_status,
+            "event_password_required": bool(quiz.event_password)
+        })
+
+
 class QuizAttemptStartView(APIView):
     permission_classes = [IsStudentUser]
     
@@ -538,7 +1068,7 @@ class QuizAttemptNextQuestionView(APIView):
         quiz = get_object_or_404(Quiz, pk=pk)
         attempt = get_object_or_404(QuizAttempt, student=request.user, quiz=quiz)
         
-        questions = list(quiz.questions.order_by('order', 'id'))
+        questions = list(quiz.questions.filter(question_type=Question.QuestionType.REGULAR).order_by('order', 'id'))
         if attempt.current_question_index >= len(questions):
             return Response({"completed": True})
             
@@ -566,7 +1096,7 @@ class QuizAttemptSubmitAnswerView(APIView):
         quiz = get_object_or_404(Quiz, pk=pk)
         attempt = get_object_or_404(QuizAttempt, student=request.user, quiz=quiz)
         
-        questions = list(quiz.questions.order_by('order', 'id'))
+        questions = list(quiz.questions.filter(question_type=Question.QuestionType.REGULAR).order_by('order', 'id'))
         if attempt.current_question_index >= len(questions):
             return Response({"detail": "Quiz already completed."}, status=400)
             
@@ -782,6 +1312,8 @@ class QuizLiveStateView(APIView):
         batch_number = None
         is_in_active_batch = False
         hotseat_attempt_data = None
+        fff_question_data = None
+        fff_answered = False
         
         if user.role == 'student':
             user_id = user.id
@@ -915,25 +1447,53 @@ class FFFSubmitView(APIView):
         if FFFAnswer.objects.filter(quiz=quiz, student=request.user, batch_number=batch_num, question=fff_question).exists():
             return Response({"detail": "You have already submitted your answer for this round."}, status=400)
             
-        choice_id = request.data.get('choice_id')
+        selected_sequence = request.data.get('selected_sequence', [])
         time_taken = float(request.data.get('time_taken', 0.0))
         
-        selected_choice = None
-        if choice_id:
-            selected_choice = Choice.objects.filter(question=fff_question, id=choice_id).first()
+        # If selected_sequence is not sent but choice_id is, wrap it in a list
+        choice_id = request.data.get('choice_id')
+        if not selected_sequence and choice_id:
+            selected_sequence = [choice_id]
             
+        correct_choices = Choice.objects.filter(question=fff_question, correct_order__isnull=False).order_by('correct_order')
+        
+        if correct_choices.exists():
+            correct_sequence = [c.id for c in correct_choices]
+            try:
+                student_seq = [int(x) for x in selected_sequence]
+            except (ValueError, TypeError):
+                student_seq = []
+            is_sequence_correct = (student_seq == correct_sequence)
+        else:
+            # Fallback to old single-choice logic
+            first_choice_id = selected_sequence[0] if selected_sequence else None
+            selected_choice = None
+            if first_choice_id:
+                selected_choice = Choice.objects.filter(question=fff_question, id=first_choice_id).first()
+            is_sequence_correct = selected_choice.is_correct if selected_choice else False
+        
+        first_choice = None
+        if selected_sequence:
+            try:
+                first_choice_id = int(selected_sequence[0])
+                first_choice = Choice.objects.filter(question=fff_question, id=first_choice_id).first()
+            except (ValueError, TypeError, IndexError):
+                pass
+        
         answer = FFFAnswer.objects.create(
             quiz=quiz,
             student=request.user,
             batch_number=batch_num,
             question=fff_question,
-            selected_choice=selected_choice,
-            time_taken_seconds=time_taken
+            selected_choice=first_choice,
+            time_taken_seconds=time_taken,
+            is_correct=is_sequence_correct,
+            submitted_sequence=",".join(map(str, selected_sequence))
         )
         
         return Response({
             "submitted": True,
-            "correct": selected_choice.is_correct if selected_choice else False
+            "correct": is_sequence_correct
         })
 
 
@@ -985,6 +1545,7 @@ class HotseatQuestionView(APIView):
             "current_index": attempt.current_question_index,
             "total_questions": len(questions),
             "score": attempt.score,
+            "preselected_choice_id": attempt.preselected_choice_id,
             "question": {
                 "id": question.id,
                 "text": question.text,
@@ -995,22 +1556,60 @@ class HotseatQuestionView(APIView):
         })
 
 
-PRIZE_MONEY_LADDER = [
-    1000,      # Q1
-    2000,      # Q2
-    3000,      # Q3
-    5000,      # Q4
-    10000,     # Q5 (Checkpoint 1)
-    20000,     # Q6
-    40000,     # Q7
-    80000,     # Q8
-    160000,    # Q9
-    320000,    # Q10 (Checkpoint 2)
-    640000,    # Q11
-    1250000,   # Q12
-    2500000,   # Q13
-    5000000,   # Q14
-    10000000   # Q15 (Checkpoint 3)
+class HotseatPreselectView(APIView):
+    """Allows the hotseat player to save their selected choice without locking it."""
+    permission_classes = [IsStudentUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+        else:
+            return Response({"detail": "Hotseat is not active."}, status=400)
+        
+        if request.user != hotseat_player:
+            return Response({"detail": "You are not the hotseat contestant."}, status=403)
+        
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=request.user, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt is not active."}, status=400)
+        
+        choice_id = request.data.get('choice_id')
+        if choice_id:
+            choice = Choice.objects.filter(id=choice_id).first()
+            attempt.preselected_choice = choice
+        else:
+            attempt.preselected_choice = None
+        attempt.save(update_fields=['preselected_choice'])
+        
+        return Response({"detail": "Selection updated.", "preselected_choice_id": choice_id})
+
+
+SCORE_LADDER = [
+    10,   # Q1
+    20,   # Q2
+    30,   # Q3
+    40,   # Q4
+    50,   # Q5 (Checkpoint 1)
+    60,   # Q6
+    70,   # Q7
+    80,   # Q8
+    90,   # Q9
+    100,  # Q10 (Checkpoint 2)
+    110,  # Q11
+    120,  # Q12
+    130,  # Q13
+    140,  # Q14
+    150   # Q15 (Checkpoint 3)
 ]
 
 class HotseatSubmitView(APIView):
@@ -1054,7 +1653,7 @@ class HotseatSubmitView(APIView):
         is_correct = selected_choice.is_correct if selected_choice else False
         
         if is_correct:
-            current_points = PRIZE_MONEY_LADDER[attempt.current_question_index]
+            current_points = SCORE_LADDER[attempt.current_question_index]
             attempt.score = current_points
             attempt.current_question_index += 1
             
@@ -1076,9 +1675,9 @@ class HotseatSubmitView(APIView):
             checkpoint_score = 0
             fail_index = attempt.current_question_index
             if fail_index >= 10:
-                checkpoint_score = 320000
+                checkpoint_score = 100  # Drop to Checkpoint 2 score
             elif fail_index >= 5:
-                checkpoint_score = 10000
+                checkpoint_score = 50   # Drop to Checkpoint 1 score
             else:
                 checkpoint_score = 0
                 
@@ -1140,7 +1739,7 @@ class HotseatLifelineView(APIView):
         if attempt.status != HotseatAttempt.Status.PLAYING:
             return Response({"detail": "Hotseat attempt already completed."}, status=400)
             
-        lifeline = request.data.get('lifeline')
+        lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
         if not lifeline or lifeline not in ['5050', 'poll', 'switch']:
             return Response({"detail": "Invalid lifeline provided."}, status=400)
             
