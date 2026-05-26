@@ -1404,54 +1404,57 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                   </div>
                 </div>
 
-                {/* Stage Director Board */}
-                <div className="kbc-stage-director glass-card glow-blue" style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                  padding: '1.5rem',
-                  borderRadius: '12px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--admin-border)',
-                  marginBottom: '2rem',
-                  gap: '1rem',
-                }}>
-                  {KBC_STAGES.map((stage) => {
-                    const isActive = kbcQuizDetail?.current_stage === stage.value;
+                {/* Stage Director Timeline */}
+                <div className="kbc-stage-director-container">
+                  <div className="kbc-stage-director-title">
+                    🎬 KBC Live Event Stage Director
+                  </div>
+                  
+                  {(() => {
+                    const activeIdx = KBC_STAGES.findIndex(s => s.value === kbcQuizDetail?.current_stage);
+                    const fillPercentage = activeIdx !== -1 
+                      ? (activeIdx / (KBC_STAGES.length - 1)) * 100 
+                      : 0;
+                      
                     return (
-                      <button
-                        key={stage.value}
-                        onClick={() => handleUpdateStage(stage.value)}
-                        disabled={kbcLoading}
-                        style={{
-                          background: isActive ? 'rgba(0, 188, 212, 0.15)' : 'rgba(255,255,255,0.03)',
-                          border: `1px solid ${isActive ? 'var(--admin-cyan)' : 'rgba(255,255,255,0.1)'}`,
-                          color: isActive ? '#fff' : 'rgba(255,255,255,0.6)',
-                          padding: '1rem 0.5rem',
-                          borderRadius: '8px',
-                          fontWeight: 'bold',
-                          fontSize: '0.85rem',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          transform: isActive ? 'scale(1.05)' : 'none',
-                          boxShadow: isActive ? '0 0 15px rgba(0, 188, 212, 0.3)' : 'none'
-                        }}
-                      >
-                        <div style={{
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          background: isActive ? 'var(--admin-cyan)' : 'transparent',
-                          border: `2px solid ${isActive ? 'var(--admin-cyan)' : 'rgba(255,255,255,0.3)'}`,
-                          boxShadow: isActive ? '0 0 8px var(--admin-cyan)' : 'none'
-                        }} />
-                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{stage.label}</span>
-                      </button>
+                      <div className="kbc-timeline-wrapper">
+                        {/* Connecting track line */}
+                        <div className="kbc-timeline-line-bg" />
+                        <div 
+                          className="kbc-timeline-line-fill" 
+                          style={{ width: `${fillPercentage}%` }} 
+                        />
+                        
+                        {/* Nodes */}
+                        {KBC_STAGES.map((stage, index) => {
+                          const isActive = index === activeIdx;
+                          const isPassed = index < activeIdx;
+                          const stepClass = isActive 
+                            ? 'active' 
+                            : isPassed 
+                              ? 'passed' 
+                              : 'future';
+                              
+                          return (
+                            <button
+                              key={stage.value}
+                              onClick={() => handleUpdateStage(stage.value)}
+                              disabled={kbcLoading}
+                              className={`kbc-timeline-step ${stepClass}`}
+                              title={`Switch to: ${stage.label}`}
+                            >
+                              <div className="kbc-timeline-medallion">
+                                {isPassed ? '✓' : index + 1}
+                              </div>
+                              <div className="kbc-timeline-label">
+                                {stage.label}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     );
-                  })}
+                  })()}
                 </div>
 
                 <div className="kbc-console-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '2rem' }}>
