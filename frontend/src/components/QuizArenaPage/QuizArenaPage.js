@@ -311,12 +311,16 @@ function QuizArenaInner({ showBeautifulPopup }) {
     const isHotseatStage = liveState.current_stage.startsWith('hotseat_batch_');
     if (isHotseatStage) {
       if (liveState.hotseat_attempt?.show_intro) {
-        setShowHotseatIntro(true);
+        if (!hasSeenHotseatIntro) {
+          setShowHotseatIntro(true);
+        }
       } else {
         setShowHotseatIntro(false);
+        setHasSeenHotseatIntro(false);
       }
     } else {
       setShowHotseatIntro(false);
+      setHasSeenHotseatIntro(false);
     }
 
     const isFffStage = liveState.current_stage.startsWith('fff_batch_');
@@ -831,6 +835,9 @@ function QuizArenaInner({ showBeautifulPopup }) {
     try {
       const res = await hostTriggerIntro(id, session?.token);
       setHostHotseatData(res.attempt);
+      if (res.attempt?.show_intro) {
+        setShowHotseatIntro(true);
+      }
       showBeautifulPopup("Intro Started", "KBC Entrance Intro plays simultaneously on all participant & spectator screens!", "success");
     } catch (err) {
       showBeautifulPopup("Error", err.message || "Failed to trigger intro playback.", "error");
@@ -841,6 +848,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
     try {
       const res = await hostCompleteIntro(id, session?.token);
       setHostHotseatData(res.attempt);
+      setShowHotseatIntro(false);
+      setHasSeenHotseatIntro(false);
       showBeautifulPopup("Intro Completed", "Intro ended. Game board has been unlocked for play!", "success");
     } catch (err) {
       showBeautifulPopup("Error", err.message || "Failed to conclude intro playback.", "error");
@@ -1751,7 +1760,10 @@ function QuizArenaInner({ showBeautifulPopup }) {
           setPoweringOn(true);
           setTimeout(() => setPoweringOn(false), 4000);
         }}
-        onComplete={() => setShowHotseatIntro(false)} 
+        onComplete={() => {
+          setShowHotseatIntro(false);
+          setHasSeenHotseatIntro(true);
+        }} 
         contestantName={introContestantName} 
       />
     ) : null;

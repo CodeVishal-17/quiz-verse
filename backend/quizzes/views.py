@@ -1373,23 +1373,6 @@ class QuizLiveStateView(APIView):
                (stage == Quiz.Stage.HOTSEAT_BATCH_3 and quiz.hotseat_player_3 == user):
                 role = "hotseat_player"
                 
-            active_hotseat_player = None
-            active_batch = None
-            if stage == Quiz.Stage.HOTSEAT_BATCH_1:
-                active_hotseat_player = quiz.hotseat_player_1
-                active_batch = 1
-            elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
-                active_hotseat_player = quiz.hotseat_player_2
-                active_batch = 2
-            elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
-                active_hotseat_player = quiz.hotseat_player_3
-                active_batch = 3
-                
-            if active_hotseat_player:
-                attempt = HotseatAttempt.objects.filter(quiz=quiz, student=active_hotseat_player, batch_number=active_batch).first()
-                if attempt:
-                    hotseat_attempt_data = HotseatAttemptSerializer(attempt).data
-            
             # Load FFF question if active
             fff_question_data = None
             fff_answered = False
@@ -1416,6 +1399,25 @@ class QuizLiveStateView(APIView):
                     fff_answered = FFFAnswer.objects.filter(
                         quiz=quiz, student=user, batch_number=fff_batch, question=fff_q
                     ).exists()
+
+        # Load active hotseat attempt data for all roles (students, hosts, and spectators)
+        stage = quiz.current_stage
+        active_hotseat_player = None
+        active_batch = None
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            active_hotseat_player = quiz.hotseat_player_1
+            active_batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            active_hotseat_player = quiz.hotseat_player_2
+            active_batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            active_hotseat_player = quiz.hotseat_player_3
+            active_batch = 3
+            
+        if active_hotseat_player:
+            attempt = HotseatAttempt.objects.filter(quiz=quiz, student=active_hotseat_player, batch_number=active_batch).first()
+            if attempt:
+                hotseat_attempt_data = HotseatAttemptSerializer(attempt).data
                     
         live_participants = quiz.registrations.count()
         total_questions = quiz.questions.filter(question_type=Question.QuestionType.REGULAR).count()
