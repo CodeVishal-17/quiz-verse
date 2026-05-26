@@ -30,6 +30,8 @@ from quizzes.views import (
     AdminPauseTimerView,
     AdminResumeTimerView,
     AdminNextQuestionReadyView,
+    AdminTriggerIntroView,
+    AdminCompleteIntroView,
 )
 
 router = DefaultRouter()
@@ -70,6 +72,8 @@ urlpatterns = [
     path('admin/<int:pk>/pause_timer/', AdminPauseTimerView.as_view(), name='quiz-admin-pause-timer'),
     path('admin/<int:pk>/resume_timer/', AdminResumeTimerView.as_view(), name='quiz-admin-resume-timer'),
     path('admin/<int:pk>/next_question/', AdminNextQuestionReadyView.as_view(), name='quiz-admin-next-question'),
+    path('admin/<int:pk>/trigger_intro/', AdminTriggerIntroView.as_view(), name='quiz-admin-trigger-intro'),
+    path('admin/<int:pk>/complete_intro/', AdminCompleteIntroView.as_view(), name='quiz-admin-complete-intro'),
 
     # Router URLs last to avoid overriding specific student routes
     path('', include(router.urls)),

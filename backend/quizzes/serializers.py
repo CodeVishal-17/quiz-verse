@@ -127,7 +127,7 @@ class HotseatAttemptSerializer(serializers.ModelSerializer):
             'lifeline_poll_used', 'lifeline_switch_used', 'started_at', 'completed_at',
             'pending_lifeline_type', 'pending_lifeline_switch_category', 
             'lifeline_request_status', 'approved_lifeline_data',
-            'timer_is_paused', 'options_visible', 'showing_question'
+            'timer_is_paused', 'options_visible', 'showing_question', 'show_intro'
         ]
         read_only_fields = ['started_at', 'completed_at']
 

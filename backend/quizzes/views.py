@@ -2332,3 +2332,68 @@ class AdminNextQuestionReadyView(APIView):
             "attempt": HotseatAttemptSerializer(attempt).data
         })
 
+
+class AdminTriggerIntroView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.show_intro = True
+        attempt.save()
+        
+        return Response({
+            "detail": "KBC Intro playback triggered successfully.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminCompleteIntroView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.show_intro = False
+        attempt.save()
+        
+        return Response({
+            "detail": "KBC Intro playback completed.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+

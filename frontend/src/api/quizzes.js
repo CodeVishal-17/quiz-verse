@@ -295,3 +295,11 @@ export function hostResumeTimer(quizId, token) {
 export function hostNextQuestion(quizId, token) {
   return request(`/quizzes/admin/${quizId}/next_question/`, { method: 'POST' }, token);
 }
+
+export function hostTriggerIntro(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/trigger_intro/`, { method: 'POST' }, token);
+}
+
+export function hostCompleteIntro(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/complete_intro/`, { method: 'POST' }, token);
+}

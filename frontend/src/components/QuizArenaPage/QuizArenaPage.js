@@ -66,7 +66,11 @@ function QuizArenaInner({ showBeautifulPopup }) {
   // Verification Credentials State
   const [playerId, setPlayerId] = useState(() => localStorage.getItem(`quiz-${id}-player-id`) || '');
   const [eventPassword, setEventPassword] = useState(() => localStorage.getItem(`quiz-${id}-event-password`) || '');
-  const [isVerified, setIsVerified] = useState(false);
+  const [isVerified, setIsVerified] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('role') === 'host') return true;
+    return sessionStorage.getItem(`quiz-${id}-verified`) === 'true';
+  });
   const [verifying, setVerifying] = useState(false);
   const [verificationError, setVerificationError] = useState('');
 
@@ -90,9 +94,40 @@ function QuizArenaInner({ showBeautifulPopup }) {
   }, [liveState]);
 
   // Entry stage machine: 'role_selection', 'credentials', 'instructions', 'active'
-  const [entryStage, setEntryStage] = useState('role_selection');
-  const [userSelectedRole, setUserSelectedRole] = useState(null);
-  const [isEntered, setIsEntered] = useState(false);
+  const [userSelectedRole, setUserSelectedRole] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    if (roleParam === 'host') return 'host';
+    return sessionStorage.getItem(`quiz-${id}-role`) || null;
+  });
+
+  const [entryStage, setEntryStage] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('role') === 'host') return 'active';
+    const savedRole = sessionStorage.getItem(`quiz-${id}-role`);
+    const savedEntered = sessionStorage.getItem(`quiz-${id}-entered`) === 'true';
+    if (savedRole && savedEntered) return 'active';
+    if (savedRole) return 'instructions';
+    return 'role_selection';
+  });
+
+  const [isEntered, setIsEntered] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('role') === 'host') return true;
+    return sessionStorage.getItem(`quiz-${id}-entered`) === 'true';
+  });
+
+  // Save entry state to sessionStorage for smooth refresh
+  useEffect(() => {
+    if (userSelectedRole) {
+      sessionStorage.setItem(`quiz-${id}-role`, userSelectedRole);
+    } else {
+      sessionStorage.removeItem(`quiz-${id}-role`);
+    }
+    sessionStorage.setItem(`quiz-${id}-stage`, entryStage || 'role_selection');
+    sessionStorage.setItem(`quiz-${id}-verified`, isVerified ? 'true' : 'false');
+    sessionStorage.setItem(`quiz-${id}-entered`, isEntered ? 'true' : 'false');
+  }, [id, userSelectedRole, entryStage, isVerified, isEntered]);
 
   // Preliminary Round (regular) States
   const [prelimQuestion, setPrelimQuestion] = useState(null);
@@ -252,9 +287,14 @@ function QuizArenaInner({ showBeautifulPopup }) {
     }
 
     const isHotseatStage = liveState.current_stage.startsWith('hotseat_batch_');
-    if (isHotseatStage && !hasSeenHotseatIntro) {
-      setShowHotseatIntro(true);
-      setHasSeenHotseatIntro(true);
+    if (isHotseatStage) {
+      if (liveState.hotseat_attempt?.show_intro) {
+        setShowHotseatIntro(true);
+      } else {
+        setShowHotseatIntro(false);
+      }
+    } else {
+      setShowHotseatIntro(false);
     }
 
     const isFffStage = liveState.current_stage.startsWith('fff_batch_');
@@ -762,6 +802,26 @@ function QuizArenaInner({ showBeautifulPopup }) {
       showBeautifulPopup("Question Pushed", "The new question has been pushed to the contestant's screen. Choices are currently hidden.", "success");
     } catch (err) {
       showBeautifulPopup("Error", err.message || "Failed to push question.", "error");
+    }
+  };
+
+  const handleHostTriggerIntro = async () => {
+    try {
+      const res = await hostTriggerIntro(id, session?.token);
+      setHostHotseatData(res.attempt);
+      showBeautifulPopup("Intro Started", "KBC Entrance Intro plays simultaneously on all participant & spectator screens!", "success");
+    } catch (err) {
+      showBeautifulPopup("Error", err.message || "Failed to trigger intro playback.", "error");
+    }
+  };
+
+  const handleHostCompleteIntro = async () => {
+    try {
+      const res = await hostCompleteIntro(id, session?.token);
+      setHostHotseatData(res.attempt);
+      showBeautifulPopup("Intro Completed", "Intro ended. Game board has been unlocked for play!", "success");
+    } catch (err) {
+      showBeautifulPopup("Error", err.message || "Failed to conclude intro playback.", "error");
     }
   };
 
@@ -1807,7 +1867,30 @@ function QuizArenaInner({ showBeautifulPopup }) {
                         </p>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '0.8rem' }}>
+                      <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
+                        {/* Play/Stop Intro Button */}
+                        <button
+                          onClick={hostHotseatData.show_intro ? handleHostCompleteIntro : handleHostTriggerIntro}
+                          style={{
+                            background: hostHotseatData.show_intro 
+                              ? 'linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%)'
+                              : 'linear-gradient(135deg, #00bfff 0%, #0080ff 100%)',
+                            color: '#fff',
+                            border: 'none',
+                            fontWeight: '900',
+                            padding: '0.6rem 1.5rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            boxShadow: hostHotseatData.show_intro 
+                              ? '0 2px 10px rgba(255, 77, 77, 0.25)' 
+                              : '0 2px 10px rgba(0, 191, 255, 0.25)',
+                            textTransform: 'uppercase',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          {hostHotseatData.show_intro ? '⏹️ STOP INTRO' : '🎥 PLAY INTRO'}
+                        </button>
+
                         {/* Next Question Push Button */}
                         {!hostHotseatData.showing_question && (
                           <button

@@ -274,6 +274,7 @@ class HotseatAttempt(models.Model):
     timer_is_paused = models.BooleanField(default=False)
     options_visible = models.BooleanField(default=False)
     showing_question = models.BooleanField(default=True)
+    show_intro = models.BooleanField(default=False)
 
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)

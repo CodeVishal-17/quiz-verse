@@ -18,7 +18,9 @@ import {
   removeRegistration,
   enrollStudentManual,
   bulkEnrollStudents,
-  downloadEnrollmentTemplate
+  downloadEnrollmentTemplate,
+  hostTriggerIntro,
+  hostCompleteIntro
 } from '../../api/quizzes';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './AdminDashboardPage.css';
@@ -834,6 +836,26 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     }
   };
 
+  const handleTriggerIntro = async () => {
+    try {
+      await hostTriggerIntro(selectedKbcQuizId, session?.token);
+      alert("KBC Intro triggered simultaneously for all screens!");
+      await fetchKbcControllerData(selectedKbcQuizId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCompleteIntro = async () => {
+    try {
+      await hostCompleteIntro(selectedKbcQuizId, session?.token);
+      alert("Intro playback completed. Game board active!");
+      await fetchKbcControllerData(selectedKbcQuizId);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const submitQuiz = async (isDraft) => {
     try {
       setSubmitLoading(true);
@@ -1317,7 +1339,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
         )}
 
         {activeTab === 'Live KBC Controller' && (
-          <section className="admin-overview-hero tilt-card kbc-controller-container">
+          <section className="admin-overview-hero kbc-controller-container">
             {!selectedKbcQuizId ? (
               <div className="kbc-quiz-selector">
                 <span className="overview-status">KBC Event Command Center</span>
@@ -1841,31 +1863,80 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                           </div>
                         )}
 
-                        <Link 
-                          to={`/quiz-arena/${selectedKbcQuizId}?role=host`} 
-                          target="_blank" 
-                          className="kbc-advance-btn glow-button"
-                          style={{
-                            background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
-                            color: '#000',
-                            fontWeight: '900',
-                            padding: '1.2rem 3.5rem',
-                            fontSize: '1.25rem',
-                            borderRadius: '8px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            boxShadow: '0 6px 25px rgba(255, 215, 0, 0.35)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.6rem',
-                            textDecoration: 'none',
-                            margin: '0 auto'
-                          }}
-                        >
-                          🎙️ ENTER FULL-SCREEN HOST ARENA
-                        </Link>
+                        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', width: '100%', maxWidth: '650px', margin: '0 auto' }}>
+                          {kbcLiveState?.hotseat_attempt && (
+                            kbcLiveState.hotseat_attempt.show_intro ? (
+                              <button
+                                onClick={handleCompleteIntro}
+                                className="kbc-advance-btn"
+                                style={{
+                                  background: 'linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%)',
+                                  color: '#fff',
+                                  fontWeight: '900',
+                                  padding: '1.2rem 2.5rem',
+                                  fontSize: '1.15rem',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 6px 25px rgba(255, 77, 77, 0.35)',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.08em',
+                                  flex: 1
+                                }}
+                              >
+                                ⏹️ STOP INTRO PLAYBACK
+                              </button>
+                            ) : (
+                              <button
+                                onClick={handleTriggerIntro}
+                                className="kbc-advance-btn"
+                                style={{
+                                  background: 'linear-gradient(135deg, #00bfff 0%, #0080ff 100%)',
+                                  color: '#fff',
+                                  fontWeight: '900',
+                                  padding: '1.2rem 2.5rem',
+                                  fontSize: '1.15rem',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 6px 25px rgba(0, 191, 255, 0.35)',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.08em',
+                                  flex: 1
+                                }}
+                              >
+                                🎥 PLAY HOTSEAT INTRO
+                              </button>
+                            )
+                          )}
+
+                          <Link 
+                            to={`/quiz-arena/${selectedKbcQuizId}?role=host`} 
+                            target="_blank" 
+                            className="kbc-advance-btn glow-button"
+                            style={{
+                              background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
+                              color: '#000',
+                              fontWeight: '900',
+                              padding: '1.2rem 2.5rem',
+                              fontSize: '1.15rem',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 6px 25px rgba(255, 215, 0, 0.35)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.08em',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.6rem',
+                              textDecoration: 'none',
+                              flex: 1
+                            }}
+                          >
+                            🎙️ ENTER HOST ARENA
+                          </Link>
+                        </div>
                       </div>
                     )}
 

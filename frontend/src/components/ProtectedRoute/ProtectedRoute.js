@@ -4,24 +4,27 @@ import { clearAuthSession, getAuthSession, getCurrentUser, saveAuthSession } fro
 import './ProtectedRoute.css';
 
 function ProtectedRoute({ allowedRoles, children }) {
-  const [state, setState] = useState({ status: 'checking', session: null });
+  const storedSession = getAuthSession();
+  
+  // Instant entry: if they have a stored session with a valid matching role, let them in immediately
+  // while we perform background validation! This guarantees zero loading freezes on refresh.
+  const [state, setState] = useState(() => {
+    if (!storedSession?.token) {
+      return { status: 'unauthenticated', session: null };
+    }
+    if (allowedRoles.includes(storedSession.role)) {
+      return { status: 'authenticated', session: storedSession };
+    }
+    return { status: 'checking', session: null };
+  });
 
   useEffect(() => {
+    if (!storedSession?.token) return;
+
     let ignore = false;
-    const storedSession = getAuthSession();
-
-    if (!storedSession?.token) {
-      setState({ status: 'unauthenticated', session: null });
-      return () => {
-        ignore = true;
-      };
-    }
-
     getCurrentUser(storedSession.token)
       .then((data) => {
-        if (ignore) {
-          return;
-        }
+        if (ignore) return;
 
         const verifiedSession = {
           ...storedSession,
@@ -34,15 +37,12 @@ function ProtectedRoute({ allowedRoles, children }) {
         setState({ status: 'authenticated', session: verifiedSession });
       })
       .catch((error) => {
-        if (!ignore) {
-          // Only clear session and logout if the token is explicitly rejected (401 or 403)
-          if (error.status === 401 || error.status === 403) {
-            clearAuthSession();
-            setState({ status: 'unauthenticated', session: null });
-          } else {
-            // Otherwise, keep the session and assume authenticated so we don't log them out on 500/network errors
-            setState({ status: 'authenticated', session: storedSession });
-          }
+        if (ignore) return;
+        
+        // Only kick them out if the server explicitly rejects the token as invalid (401/403)
+        if (error.status === 401 || error.status === 403) {
+          clearAuthSession();
+          setState({ status: 'unauthenticated', session: null });
         }
       });
 
