@@ -22,7 +22,9 @@ import {
   hostShowOptions,
   hostPauseTimer,
   hostResumeTimer,
-  hostNextQuestion
+  hostNextQuestion,
+  hostTriggerIntro,
+  hostCompleteIntro
 } from '../../api/quizzes';
 import { getAuthSession } from '../../api/auth';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
