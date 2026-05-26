@@ -1320,15 +1320,15 @@ class QuizLiveStateView(APIView):
         
         # Auto-populate batches if empty and stage is batch_selection or later FFF/Hotseat stages
         if quiz.current_stage != Quiz.Stage.REGULAR and not quiz.batch_1_players and not quiz.batch_2_players and not quiz.batch_3_players:
-            attempts = QuizAttempt.objects.filter(quiz=quiz, completed_at__isnull=False).order_by('-score', 'completed_at')
-            student_ids = [att.student_id for att in attempts]
-            
-            top_30 = student_ids[:30]
-            quiz.batch_1_players = top_30[0:10]
-            quiz.batch_2_players = top_30[10:20]
-            quiz.batch_3_players = top_30[20:30]
-            quiz.top_30_selected = top_30
-            quiz.save(update_fields=['top_30_selected', 'batch_1_players', 'batch_2_players', 'batch_3_players'])
+            attempts = list(QuizAttempt.objects.filter(quiz=quiz, completed_at__isnull=False).order_by('-score', 'completed_at'))
+            if attempts:
+                student_ids = [att.student_id for att in attempts]
+                top_30 = student_ids[:30]
+                quiz.batch_1_players = top_30[0:10]
+                quiz.batch_2_players = top_30[10:20]
+                quiz.batch_3_players = top_30[20:30]
+                quiz.top_30_selected = top_30
+                quiz.save(update_fields=['top_30_selected', 'batch_1_players', 'batch_2_players', 'batch_3_players'])
 
         user = request.user
         
@@ -1421,12 +1421,16 @@ class QuizLiveStateView(APIView):
         total_questions = quiz.questions.filter(question_type=Question.QuestionType.REGULAR).count()
         overall_total_questions = quiz.questions.count()
                     
-        # Resolve batch player names
+        # Resolve batch player names in a single database query
+        all_ids = set((quiz.batch_1_players or []) + (quiz.batch_2_players or []) + (quiz.batch_3_players or []))
+        user_map = {}
+        if all_ids:
+            users = User.objects.filter(id__in=all_ids)
+            user_map = {u.id: u.full_name for u in users}
+
         def resolve_players_list(id_list):
             if not id_list:
                 return []
-            users = User.objects.filter(id__in=id_list)
-            user_map = {u.id: u.full_name for u in users}
             return [{"id": pid, "name": user_map.get(pid, f"Player ID: {pid}")} for pid in id_list]
 
         b1_resolved = resolve_players_list(quiz.batch_1_players)
