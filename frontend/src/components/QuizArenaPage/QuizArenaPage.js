@@ -283,8 +283,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
   useEffect(() => {
     if (!liveState) return;
 
-    // Initialize preliminary round if stage is regular
-    if (liveState.current_stage === 'regular' && !prelimInitialized && !loading && userSelectedRole !== 'spectator') {
+    // Initialize preliminary round if stage is regular and participant has successfully entered
+    if (liveState.current_stage === 'regular' && !prelimInitialized && !loading && userSelectedRole === 'participant' && entryStage === 'active' && isEntered) {
       initializePrelim();
     }
 
@@ -332,7 +332,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
         loadHotseatQuestion();
       }
     }
-  }, [liveState, prelimQuestion, prelimInitialized, loading, userSelectedRole, fffAnswered]);
+  }, [liveState, prelimQuestion, prelimInitialized, loading, userSelectedRole, fffAnswered, entryStage, isEntered]);
 
   // Hotseat countdown timer interval manager
   useEffect(() => {
