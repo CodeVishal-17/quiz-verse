@@ -165,6 +165,31 @@ export function triggerHotseatLifeline(id, lifelineType, category = '', token) {
   }, token);
 }
 
+export function requestHotseatLifeline(id, lifelineType, category = '', token) {
+  return request(`/quizzes/${id}/hotseat-lifeline-request/`, {
+    method: 'POST',
+    body: JSON.stringify({ lifeline_type: lifelineType, category }),
+  }, token);
+}
+
+export function acknowledgeHotseatLifeline(id, token) {
+  return request(`/quizzes/${id}/hotseat-lifeline-acknowledge/`, {
+    method: 'POST',
+  }, token);
+}
+
+export function approveHotseatLifeline(id, token) {
+  return request(`/quizzes/admin/${id}/approve_lifeline/`, {
+    method: 'POST',
+  }, token);
+}
+
+export function rejectHotseatLifeline(id, token) {
+  return request(`/quizzes/admin/${id}/reject_lifeline/`, {
+    method: 'POST',
+  }, token);
+}
+
 export function hotseatWalkAway(id, token) {
   return request(`/quizzes/${id}/hotseat-walk-away/`, { method: 'POST' }, token);
 }
@@ -252,4 +277,20 @@ export async function downloadEnrollmentTemplate(token) {
   });
   if (!res.ok) throw new Error('Failed to download student enrollment template');
   return res.blob();
+}
+
+export function hostShowOptions(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/show_options/`, { method: 'POST' }, token);
+}
+
+export function hostPauseTimer(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/pause_timer/`, { method: 'POST' }, token);
+}
+
+export function hostResumeTimer(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/resume_timer/`, { method: 'POST' }, token);
+}
+
+export function hostNextQuestion(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/next_question/`, { method: 'POST' }, token);
 }

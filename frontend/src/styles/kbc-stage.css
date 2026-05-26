@@ -1,0 +1,156 @@
+/* KBC theme — static studio look, minimal motion */
+
+.landing-background,
+.login-background,
+.registration-background,
+.arena-background,
+.dashboard-background,
+.admin-dashboard-background {
+  isolation: isolate;
+}
+
+/* Static spotlight + ring (no animation) */
+.landing-background::before,
+.login-background::before,
+.registration-background::before,
+.arena-background::before,
+.dashboard-background::before,
+.admin-dashboard-background::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: min(120vw, 800px);
+  height: 90vh;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 80% at 50% 0%, rgba(212, 160, 23, 0.2), transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.landing-background::after,
+.login-background::after,
+.registration-background::after,
+.arena-background::after,
+.dashboard-background::after,
+.admin-dashboard-background::after {
+  content: '';
+  position: absolute;
+  bottom: -20vh;
+  left: 50%;
+  transform: translateX(-50%) rotateX(75deg);
+  width: 150vw;
+  height: 100vh;
+  background: repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 80px, rgba(212, 160, 23, 0.05) 81px, transparent 82px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Panels */
+.kbc-frame-panel::before,
+.leaderboard-panel::before,
+.login-container::before,
+.registration-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.6), transparent);
+  border-radius: 6px 6px 0 0;
+}
+
+/* Hot seat */
+.kbc-question-frame h2 {
+  font-family: var(--font-display) !important;
+  color: var(--kbc-cream) !important;
+}
+
+.kbc-choice .choice-indicator {
+  background: linear-gradient(135deg, var(--kbc-gold-bright), var(--kbc-gold)) !important;
+  color: var(--kbc-navy-deep) !important;
+  border: none !important;
+}
+
+.hotseat-ladder-panel {
+  background: linear-gradient(180deg, rgba(2, 10, 26, 0.95), rgba(6, 16, 43, 0.98)) !important;
+  border: 2px solid rgba(212, 160, 23, 0.3) !important;
+  border-radius: 8px !important;
+}
+
+.ladder-header {
+  font-family: var(--font-display) !important;
+  color: var(--kbc-gold-bright) !important;
+  border-bottom: 1px solid rgba(212, 160, 23, 0.2);
+}
+
+.ladder-step {
+  clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0% 50%);
+}
+
+.ladder-step.checkpoint::before {
+  content: '◆ ';
+  color: var(--kbc-gold-bright);
+  font-size: 0.65rem;
+}
+
+.btn-lifeline {
+  border: 2px solid var(--kbc-gold) !important;
+  background: radial-gradient(circle at 35% 30%, var(--kbc-navy-mid), var(--kbc-navy-deep)) !important;
+}
+
+.lifeline-ring {
+  color: var(--kbc-gold-bright) !important;
+  font-weight: 800 !important;
+}
+
+/* Arena atmosphere — static */
+.arena-page {
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 0%, rgba(212, 160, 23, 0.15), transparent 55%),
+    linear-gradient(180deg, var(--kbc-navy) 0%, var(--kbc-navy-deep) 100%) !important;
+}
+
+.arena-topbar {
+  border-bottom: 2px solid rgba(212, 160, 23, 0.3) !important;
+  background: rgba(2, 10, 26, 0.95) !important;
+}
+
+.arena-timer {
+  border: 2px solid rgba(212, 160, 23, 0.4) !important;
+  color: var(--kbc-gold-bright) !important;
+}
+
+.golden-glow,
+.arena-brand {
+  font-family: var(--font-display) !important;
+}
+
+.arena-progress-fill {
+  background: linear-gradient(90deg, var(--kbc-gold), var(--kbc-gold-bright)) !important;
+}
+
+.arena-choice-btn:not(.kbc-choice) {
+  clip-path: polygon(18px 0%, calc(100% - 18px) 0%, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0% 50%);
+  border: 1px solid rgba(212, 160, 23, 0.25) !important;
+}
+
+/* Dashboard */
+.dashboard-page,
+.admin-dashboard-page {
+  background:
+    radial-gradient(ellipse 80% 45% at 50% 0%, rgba(212, 160, 23, 0.1), transparent 50%),
+    linear-gradient(180deg, var(--kbc-navy) 0%, var(--kbc-navy-deep) 100%) !important;
+}
+
+.dashboard-page .sidebar-item.is-active,
+.admin-dashboard-page .admin-sidebar-item.is-active {
+  border-color: rgba(212, 160, 23, 0.45) !important;
+  background: linear-gradient(90deg, rgba(212, 160, 23, 0.12), transparent) !important;
+}
+
+.dashboard-page .dashboard-brand,
+.admin-dashboard-page .admin-brand {
+  font-family: var(--font-display) !important;
+}

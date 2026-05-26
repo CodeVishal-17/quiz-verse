@@ -116,3 +116,35 @@ class CurrentUserView(APIView):
                 "user": UserPublicSerializer(user).data,
             }
         )
+
+    def put(self, request):
+        user = get_user_from_request_token(request)
+
+        if user is None:
+            return Response({"detail": "Authentication credentials were not provided or are invalid."}, status=401)
+
+        email = request.data.get("email", "").strip()
+        password = request.data.get("password", "").strip()
+        current_password = request.data.get("current_password", "").strip()
+
+        if email:
+            if User.objects.exclude(id=user.id).filter(email=email).exists():
+                return Response({"detail": "This email is already taken by another account."}, status=status.HTTP_400_BAD_REQUEST)
+            user.email = email
+
+        if password:
+            if not current_password:
+                return Response({"detail": "Current password is required to change password."}, status=status.HTTP_400_BAD_REQUEST)
+            if not user.check_password(current_password):
+                return Response({"detail": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+            if len(password) < 8:
+                return Response({"detail": "New password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(password)
+
+        user.save()
+        return Response(
+            {
+                "message": "Account credentials updated successfully.",
+                "user": UserPublicSerializer(user).data,
+            }
+        )

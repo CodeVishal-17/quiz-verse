@@ -1,27 +1,49 @@
-:root {
-  --bg-dark: #111111;
-  --bg-cream: #fdfbf7;
-  --bg-pink: #ffb6c1;
-  --bg-mint: #98ff98;
-  --bg-grey: #222222;
-  
-  --text-light: #fdfbf7;
-  --text-dark: #111111;
-  --text-muted: #888888;
-  
-  --pink: #ffb6c1;
-  --mint: #98ff98;
-  --cyan: #00e5ff;
-  --black: #111111;
-  --cream: #fdfbf7;
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
 
-  --shadow-cinematic: 0 40px 100px rgba(0, 0, 0, 0.8);
-  --shadow-spotlight: 0 0 150px rgba(255, 255, 255, 0.1);
-  --shadow-glow-pink: 0 0 60px rgba(255, 182, 193, 0.4);
-  --shadow-glow-mint: 0 0 60px rgba(152, 255, 152, 0.4);
-  
-  --transition: 400ms cubic-bezier(0.16, 1, 0.3, 1);
-  --font-cinematic: 'Outfit', 'Inter', system-ui, sans-serif;
+:root {
+  /* ── KBC Studio Palette ── */
+  --kbc-navy: #06102b;
+  --kbc-navy-deep: #020a1a;
+  --kbc-navy-mid: #0d1e52;
+  --kbc-indigo: #0f1d5e;
+  --kbc-gold: #d4a017;
+  --kbc-gold-bright: #ffd700;
+  --kbc-gold-dark: #b8860b;
+  --kbc-amber: #e8a317;
+  --kbc-bronze: #cd7f32;
+  --kbc-sapphire: #0d47a1;
+  --kbc-sky: #1e88e5;
+  --kbc-cream: #fff8e1;
+  --kbc-cream-soft: #f5f0dc;
+
+  /* ── Semantic Aliases ── */
+  --bg-dark: var(--kbc-navy);
+  --bg-cream: var(--kbc-cream);
+  --bg-pink: var(--kbc-gold);
+  --bg-mint: var(--kbc-sapphire);
+  --bg-grey: #0e1a45;
+
+  --text-light: #f0e6c8;
+  --text-dark: var(--kbc-navy-deep);
+  --text-muted: rgba(240, 230, 200, 0.55);
+
+  --pink: var(--kbc-gold);
+  --mint: var(--kbc-sky);
+  --cyan: var(--kbc-sky);
+  --black: var(--kbc-navy-deep);
+  --cream: var(--kbc-cream);
+
+  /* ── Shadows ── */
+  --shadow-cinematic: 0 32px 80px rgba(2, 4, 18, 0.85);
+  --shadow-spotlight: 0 0 120px rgba(212, 160, 23, 0.12);
+  --shadow-glow-pink: 0 0 50px rgba(212, 160, 23, 0.25);
+  --shadow-glow-mint: 0 0 40px rgba(13, 71, 161, 0.2);
+
+  /* ── Transitions & Fonts ── */
+  --transition: 350ms cubic-bezier(0.22, 1, 0.36, 1);
+  --font-display: 'Cinzel', 'Cinzel Decorative', Georgia, serif;
+  --font-ui: 'Rajdhani', 'Barlow Condensed', system-ui, sans-serif;
+  --font-cinematic: var(--font-ui);
 }
 
 * {
@@ -30,28 +52,41 @@
   padding: 0;
 }
 
-html, body {
+html, body, #root {
   min-height: 100%;
-  width: 100%;
-  overflow-x: hidden;
-  background-color: var(--bg-dark);
-  color: var(--text-light);
-  font-family: var(--font-cinematic);
-  scroll-behavior: smooth;
 }
 
-/* Remove default scrollbar for immersive feel */
-::-webkit-scrollbar {
-  width: 8px;
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--kbc-navy-deep);
+  color: var(--text-light);
+  font-family: var(--font-ui);
+  font-weight: 500;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
 }
-::-webkit-scrollbar-track {
-  background: var(--bg-dark);
+
+/* ── KBC Studio Floor Background ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 100% 80% at 50% 110%, rgba(13, 71, 161, 0.12), transparent 60%),
+    radial-gradient(circle at 50% 0%, rgba(212, 160, 23, 0.06), transparent 50%),
+    repeating-radial-gradient(circle at 50% 100%, transparent 0px, transparent 80px, rgba(212, 160, 23, 0.015) 82px, transparent 84px),
+    var(--kbc-navy-deep);
+  pointer-events: none;
 }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--kbc-navy-deep); }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-grey);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--pink);
+  background: linear-gradient(180deg, var(--kbc-gold-dark), var(--kbc-gold), var(--kbc-amber));
+  border-radius: 3px;
 }
 
 button, input, select, textarea {
@@ -60,20 +95,83 @@ button, input, select, textarea {
   outline: none;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+a { color: inherit; text-decoration: none; }
 
 ::selection {
-  background: var(--pink);
-  color: var(--black);
+  background: var(--kbc-gold);
+  color: var(--kbc-navy-deep);
 }
 
-/* Base Utility Classes for Geometry */
 .geo-symbol {
-  font-family: monospace;
-  font-weight: 900;
+  font-family: var(--font-ui);
+  font-weight: 700;
   line-height: 1;
   user-select: none;
 }
+
+/* ── Global KBC Animations ── */
+@keyframes kbcFadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kbcFloatSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes kbcGoldShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes kbcSpotlightPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes kbcRingSweep {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes kbcGlowPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(212, 160, 23, 0.2); }
+  50% { box-shadow: 0 0 35px rgba(212, 160, 23, 0.5); }
+}
+
+/* --- KBC Boxy Fixes --- */
+button, .btn-submit, .btn-action, .btn-register, .btn-enter {
+  border-radius: 30px !important;
+}
+.glass-card, .dashboard-card, .admin-card, .kbc-frame-panel {
+  border-radius: 16px !important;
+}
+input, select, textarea {
+  border-radius: 8px !important;
+}
+
+
+/* --- KBC Dashboard Overrides --- */
+.dashboard-page, .admin-dashboard-page {
+  background: var(--kbc-navy-deep) !important;
+}
+.dashboard-sidebar, .admin-sidebar {
+  background: rgba(6, 16, 43, 0.95) !important;
+  border-right: 2px solid var(--kbc-gold) !important;
+}
+.dashboard-card, .admin-card, .kbc-panel {
+  background: linear-gradient(165deg, rgba(6, 16, 43, 0.95), rgba(2, 10, 26, 0.98)) !important;
+  border: 1px solid rgba(212, 160, 23, 0.3) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(212, 160, 23, 0.05) !important;
+}
+.dashboard-card:hover, .admin-card:hover {
+  border-color: var(--kbc-gold) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(212, 160, 23, 0.1) !important;
+}
+.sidebar-item.is-active, .admin-sidebar-item.is-active {
+  background: rgba(212, 160, 23, 0.15) !important;
+  border-left: 4px solid var(--kbc-gold-bright) !important;
+  color: var(--kbc-gold-bright) !important;
+}
+

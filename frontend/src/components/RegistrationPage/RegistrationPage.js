@@ -7,6 +7,7 @@ import {
   registerStudent,
   saveAuthSession,
 } from '../../api/auth';
+import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './RegistrationPage.css';
 
 function RegistrationPage() {
@@ -180,17 +181,17 @@ function RegistrationPage() {
   };
 
   return (
-    <main className="registration-page">
+    <main className="registration-page kbc-broadcast">
       <div className="registration-background">
+        <KbcStageFx />
         <div className="bg-shape shape-pink-large" />
         <div className="bg-shape shape-mint-square" />
-        <div className="bg-particles" />
       </div>
 
-      <div className="registration-container">
+      <div className="registration-container kbc-frame-panel">
         <div className="registration-header">
-          <div className="header-icon">O</div>
-          <h1 className="registration-title">PARTICIPANT REGISTRATION</h1>
+          <div className="header-icon">₹</div>
+          <h1 className="registration-title kbc-title-shimmer">Contestant Registration</h1>
           <p className="registration-subtitle">Enter your official details to be verified for the arena.</p>
         </div>
 

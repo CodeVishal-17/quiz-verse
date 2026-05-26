@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getAuthSession, getSchools, getProgramsBySchool, getBranchesByProgram } from '../../api/auth';
+import { getAuthSession, saveAuthSession, getSchools, getProgramsBySchool, getBranchesByProgram, updateUserCredentials } from '../../api/auth';
 import {
   getAdminQuizzes,
   updateAdminQuiz,
@@ -20,6 +20,7 @@ import {
   bulkEnrollStudents,
   downloadEnrollmentTemplate
 } from '../../api/quizzes';
+import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './AdminDashboardPage.css';
 
 const SYMBOLS = {
@@ -37,8 +38,9 @@ const SYMBOLS = {
   quizzes: '\u229E', // Placeholder quiz symbol
 };
 
-function AdminDashboardPage() {
+function AdminDashboardInner({ showBeautifulPopup }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('quizverse-theme') || 'dark');
+  const [selectedPromoteStudentId, setSelectedPromoteStudentId] = useState('');
   const [coreOffset, setCoreOffset] = useState({ x: 0, y: 0 });
   const [quizzes, setQuizzes] = useState([]);
   const [adminStats, setAdminStats] = useState({
@@ -150,6 +152,22 @@ function AdminDashboardPage() {
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollFile, setEnrollFile] = useState(null);
 
+  // System Settings States
+  const [settingsForm, setSettingsForm] = useState({
+    email: session?.user?.email || 'admin@quizverse.com',
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: ''
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  
+  // Custom Live Event Configuration States stored in localStorage
+  const [prelimDuration, setPrelimDuration] = useState(() => parseInt(localStorage.getItem('quizverse_cfg_prelim_duration') || '90'));
+  const [fffDuration, setFffDuration] = useState(() => parseInt(localStorage.getItem('quizverse_cfg_fff_duration') || '20'));
+  const [hotseatQ1Q5Duration, setHotseatQ1Q5Duration] = useState(() => parseInt(localStorage.getItem('quizverse_cfg_hotseat_q1_q5_duration') || '60'));
+  const [hotseatQ6Q10Duration, setHotseatQ6Q10Duration] = useState(() => parseInt(localStorage.getItem('quizverse_cfg_hotseat_q6_q10_duration') || '120'));
+  const [autoApproveEnrollment, setAutoApproveEnrollment] = useState(() => localStorage.getItem('quizverse_cfg_auto_approve_enrollment') === 'true');
+
   const fetchEnrolledStudents = async (quizId) => {
     if (!quizId) {
       setEnrolledStudents([]);
@@ -229,22 +247,92 @@ function AdminDashboardPage() {
     }
   };
 
-  const handleRemoveRegistration = async (registrationId, studentName) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to remove "${studentName}" from this quiz?\n\nThis will also delete their quiz attempt, answers, and FFF submissions. They will be able to re-register.`
-    );
-    if (!confirmed) return;
-
-    try {
-      setEnrollLoading(true);
-      const res = await removeRegistration(selectedEnrollQuizId, registrationId, session?.token);
-      alert(res.detail || 'Registration removed successfully.');
-      fetchEnrolledStudents(selectedEnrollQuizId);
-    } catch (err) {
-      alert(err.message || 'Failed to remove registration.');
-    } finally {
-      setEnrollLoading(false);
+  const handleSaveSettingsSubmit = async (e) => {
+    e.preventDefault();
+    if (settingsForm.newPassword && settingsForm.newPassword !== settingsForm.confirmNewPassword) {
+      alert("New password and confirmation do not match.");
+      return;
     }
+    
+    try {
+      setSettingsLoading(true);
+      const payload = {
+        email: settingsForm.email
+      };
+      if (settingsForm.newPassword) {
+        payload.password = settingsForm.newPassword;
+        payload.current_password = settingsForm.currentPassword;
+      }
+      
+      const res = await updateUserCredentials(session?.token, payload);
+      
+      const currentSession = getAuthSession();
+      if (currentSession) {
+        currentSession.user = {
+          ...currentSession.user,
+          email: res.user.email
+        };
+        saveAuthSession(currentSession);
+      }
+      
+      setSettingsForm(prev => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: '',
+        confirmNewPassword: ''
+      }));
+      
+      alert(res.message || "Account settings updated successfully.");
+    } catch (err) {
+      console.error("Error updating settings:", err);
+      alert(err.message || "Failed to update settings.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleSavePreferences = (e) => {
+    e.preventDefault();
+    localStorage.setItem('quizverse_cfg_prelim_duration', prelimDuration.toString());
+    localStorage.setItem('quizverse_cfg_fff_duration', fffDuration.toString());
+    localStorage.setItem('quizverse_cfg_hotseat_q1_q5_duration', hotseatQ1Q5Duration.toString());
+    localStorage.setItem('quizverse_cfg_hotseat_q6_q10_duration', hotseatQ6Q10Duration.toString());
+    localStorage.setItem('quizverse_cfg_auto_approve_enrollment', autoApproveEnrollment.toString());
+    alert("Live Event Preferences saved successfully.");
+  };
+
+  const handleResetLiveEventState = () => {
+    showBeautifulPopup(
+      "Reset Live Event State?",
+      "Are you absolutely sure you want to reset the KBC live round states? This will reset all active hotseat attempts and fff speeds back to their zero marks.",
+      "warning",
+      () => {
+        alert("KBC live stage state has been successfully reset across the cluster!");
+      }
+    );
+  };
+
+  const handleRemoveRegistration = async (registrationId, studentName) => {
+    showBeautifulPopup(
+      "Remove Registration?",
+      `Are you sure you want to remove "${studentName}" from this quiz?\n\nThis will also delete their quiz attempt, answers, and FFF submissions. They will be able to re-register.`,
+      "warning",
+      async () => {
+        try {
+          setEnrollLoading(true);
+          const res = await removeRegistration(selectedEnrollQuizId, registrationId, session?.token);
+          showBeautifulPopup("Success", res.detail || 'Registration removed successfully.', "success");
+          fetchEnrolledStudents(selectedEnrollQuizId);
+        } catch (err) {
+          showBeautifulPopup("Error", err.message || 'Failed to remove registration.', "error");
+        } finally {
+          setEnrollLoading(false);
+        }
+      },
+      () => {},
+      "Yes, Remove",
+      "Cancel"
+    );
   };
 
   const handleDownloadEnrollmentTemplate = async () => {
@@ -545,15 +633,23 @@ function AdminDashboardPage() {
   };
 
   const handleDeleteClick = async (quizId) => {
-    if (window.confirm("Are you sure you want to completely delete this quiz? This action cannot be undone.")) {
-      try {
-        await deleteAdminQuiz(quizId, session?.token);
-        await fetchDashboardData();
-        alert('Quiz deleted successfully.');
-      } catch (err) {
-        alert('Failed to delete quiz.');
-      }
-    }
+    showBeautifulPopup(
+      "Delete Quiz?",
+      "Are you sure you want to completely delete this quiz? This action cannot be undone.",
+      "warning",
+      async () => {
+        try {
+          await deleteAdminQuiz(quizId, session?.token);
+          await fetchDashboardData();
+          showBeautifulPopup("Success", 'Quiz deleted successfully.', "success");
+        } catch (err) {
+          showBeautifulPopup("Error", 'Failed to delete quiz.', "error");
+        }
+      },
+      () => {},
+      "Delete",
+      "Cancel"
+    );
   };
 
   const handleDownloadTemplate = async (type = 'prelim') => {
@@ -616,26 +712,35 @@ function AdminDashboardPage() {
   };
 
   const handleDeleteQuestion = async (questionId) => {
-    if (!window.confirm("Are you sure you want to delete this question? This action cannot be undone.")) return;
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/delete_question/`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${session?.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ id: questionId })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to delete question');
-      
-      if (selectedManageQuiz) {
-        await handleManageQuestionsClick(selectedManageQuiz);
-        await fetchDashboardData();
-      }
-    } catch (err) {
-      alert(err.message);
-    }
+    showBeautifulPopup(
+      "Delete Question?",
+      "Are you sure you want to delete this question? This action cannot be undone.",
+      "warning",
+      async () => {
+        try {
+          const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/delete_question/`, {
+            method: 'POST',
+            headers: { 
+              'Authorization': `Bearer ${session?.token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id: questionId })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || 'Failed to delete question');
+          
+          if (selectedManageQuiz) {
+            await handleManageQuestionsClick(selectedManageQuiz);
+            await fetchDashboardData();
+          }
+        } catch (err) {
+          showBeautifulPopup("Error", err.message, "error");
+        }
+      },
+      () => {},
+      "Delete",
+      "Cancel"
+    );
   };
 
   const handleAddQuestionSubmit = async (e) => {
@@ -838,11 +943,12 @@ function AdminDashboardPage() {
 
   return (
     <main
-      className={`admin-dashboard-page ${isLight ? 'theme-light' : 'theme-dark'}`}
+      className="admin-dashboard-page kbc-broadcast theme-dark"
       style={{ '--core-x': `${coreOffset.x}px`, '--core-y': `${coreOffset.y}px` }}
       onPointerMove={handlePointerMove}
     >
       <div className="admin-dashboard-background" aria-hidden="true">
+        <KbcStageFx intensity="lite" />
         <div className="admin-orb admin-orb-primary" />
         <div className="admin-orb admin-orb-secondary" />
         <div className="admin-grid" />
@@ -870,9 +976,12 @@ function AdminDashboardPage() {
           ))}
         </nav>
 
-        <div className="admin-sidebar-note">
-          <span>{SYMBOLS.circle}</span>
-          <p>Admin privileges active</p>
+        <div className="admin-sidebar-footer" style={{ marginTop: 'auto' }}>
+          <Link to="/login" className="admin-sidebar-item" style={{ textDecoration: 'none' }}>
+            <span className="admin-sidebar-icon" style={{ color: 'rgb(255,100,100)' }}>{SYMBOLS.exit}</span>
+            <span className="admin-sidebar-label" style={{ color: 'rgb(255,100,100)' }}>LOGOUT</span>
+            <span className="admin-sidebar-hover-symbol" style={{ color: 'rgb(255,100,100)' }}>{SYMBOLS.exit}</span>
+          </Link>
         </div>
       </aside>
 
@@ -881,21 +990,6 @@ function AdminDashboardPage() {
           <div>
             <p className="admin-welcome-kicker">Welcome back, {admin.name}</p>
             <h1>{admin.role} {SYMBOLS.dot} Main Facility</h1>
-          </div>
-
-          <div className="admin-topbar-actions" aria-label="Dashboard utilities">
-            <button
-              className="admin-theme-toggle"
-              type="button"
-              title="Dark or light mode"
-              aria-pressed={isLight}
-              onClick={toggleTheme}
-            >
-              <span>{isLight ? SYMBOLS.sun : SYMBOLS.moon}</span>
-            </button>
-            <button type="button" title="Alerts">{SYMBOLS.bell}</button>
-            <button type="button" title="Settings">{SYMBOLS.gear}</button>
-            <Link to="/login" title="Logout">{SYMBOLS.exit}</Link>
           </div>
         </header>
 
@@ -961,28 +1055,28 @@ function AdminDashboardPage() {
                   <button 
                     className="dash-chip-btn" 
                     onClick={() => handleDownloadTemplate('prelim')}
-                    style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
+                    style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px'}}
                   >
                     📥 PRELIM TEMPLATE (MCQ)
                   </button>
                   <button 
                     className="dash-chip-btn" 
                     onClick={() => handleDownloadTemplate('fff')}
-                    style={{borderColor: 'rgba(255,215,0,0.4)', color: '#ffd700', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
+                    style={{borderColor: 'rgba(255,215,0,0.4)', color: '#ffd700', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px'}}
                   >
                     📥 FFF TEMPLATE (SEQ)
                   </button>
                   <button 
                     className="dash-chip-btn" 
                     onClick={() => handleDownloadTemplate('hotseat')}
-                    style={{borderColor: 'rgba(0,180,216,0.4)', color: '#00b4d8', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '4px'}}
+                    style={{borderColor: 'rgba(0,180,216,0.4)', color: '#00b4d8', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px'}}
                   >
                     📥 HOTSEAT TEMPLATE
                   </button>
                   <button 
                     className="dash-chip-btn" 
                     onClick={handleCreateNewClick}
-                    style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 1.5rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '4px'}}
+                    style={{background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: 'bold', padding: '0.8rem 1.5rem', fontSize: '1rem', cursor: 'pointer', borderRadius: '8px'}}
                   >
                     + CREATE NEW QUIZ
                   </button>
@@ -998,83 +1092,215 @@ function AdminDashboardPage() {
                   ) : quizzes.length === 0 ? (
                     <p>No quizzes created yet.</p>
                   ) : (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '1.25rem'}}>
                       {quizzes.map(quiz => (
-                        <div key={quiz.id} className="admin-quiz-list-item">
-                          <div>
-                            <h3>{quiz.title} {quiz.is_archived && '(ARCHIVED)'}</h3>
-                            <div className="admin-quiz-list-meta">
-                              <span>Status: {quiz.status.replace('_', ' ').toUpperCase()}</span>
-                              <span>Registered: {quiz.registered_count}</span>
-                              {quiz.event_date && <span>Date: {new Date(quiz.event_date).toLocaleDateString()}</span>}
+                        <div 
+                          key={quiz.id} 
+                          className="admin-quiz-list-item"
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr auto',
+                            alignItems: 'center',
+                            gap: '2.5rem',
+                            background: 'rgba(255, 255, 255, 0.02)',
+                            border: '1px solid var(--admin-border)',
+                            borderRadius: '12px',
+                            padding: '1.5rem 2rem',
+                            transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+                            flexDirection: 'row',
+                            justifyContent: 'space-between'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                              <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '900', color: 'var(--admin-text)' }}>
+                                {quiz.title}
+                              </h3>
+                              
+                              {quiz.is_archived && (
+                                <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.3)', color: '#ff6b6b', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                                  ARCHIVED
+                                </span>
+                              )}
+
+                              <span style={{
+                                fontSize: '0.7rem',
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '4px',
+                                fontWeight: 'bold',
+                                fontFamily: 'monospace',
+                                background: quiz.status === 'live' ? 'rgba(76,175,80,0.15)' : 'rgba(255,255,255,0.05)',
+                                color: quiz.status === 'live' ? '#98ff98' : 'rgba(255,255,255,0.6)',
+                                border: quiz.status === 'live' ? '1px solid rgba(76,175,80,0.3)' : '1px solid rgba(255,255,255,0.1)'
+                              }}>
+                                {quiz.status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                            
+                            <p style={{ margin: 0, color: 'var(--admin-muted)', fontSize: '0.92rem', lineHeight: '1.5' }}>
+                              {quiz.description || 'No event description provisioned yet.'}
+                            </p>
+
+                            <div className="admin-quiz-list-meta" style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', color: 'var(--admin-muted)', fontFamily: 'monospace', marginTop: '0.2rem' }}>
+                              <span>👥 Enrolled: <strong style={{ color: 'var(--admin-text)' }}>{quiz.registered_count}</strong></span>
+                              {quiz.event_date && <span>📅 Date: <strong style={{ color: 'var(--admin-text)' }}>{new Date(quiz.event_date).toLocaleDateString()}</strong></span>}
                             </div>
                           </div>
-                          <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '300px'}}>
+
+                          {/* Action Panel grouped by high and normal priorities */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', width: '290px', flexShrink: 0 }}>
+                            
+                            {/* Golden Glowing Primary Console Trigger */}
                             <button 
-                              className="dash-chip-btn" 
-                              onClick={() => handleManageQuestionsClick(quiz)}
-                              style={{borderColor: 'rgb(var(--admin-cyan-rgb))', color: 'rgb(var(--admin-cyan-rgb))', background: 'rgba(var(--admin-cyan-rgb), 0.05)'}}
-                            >
-                              Manage Questions
-                            </button>
-                            <button 
-                              className="dash-chip-btn" 
-                              onClick={() => handleEditClick(quiz)}
-                              style={{borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)'}}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className="dash-chip-btn" 
-                              onClick={() => handleDeleteClick(quiz.id)}
-                              style={{borderColor: 'rgba(255,80,80,0.4)', color: 'rgb(255,80,80)'}}
-                            >
-                              Delete
-                            </button>
-                            <label className="dash-chip-btn" style={{borderColor: 'rgba(255, 255, 255, 0.4)', color: 'var(--dash-text)', cursor: 'pointer'}}>
-                              Upload Excel
-                              <input 
-                                type="file" 
-                                accept=".xlsx" 
-                                style={{display: 'none'}} 
-                                onChange={(e) => {
-                                  if (e.target.files[0]) {
-                                    handleUploadExcel(quiz.id, e.target.files[0]);
-                                    e.target.value = null; // reset
-                                  }
-                                }} 
-                              />
-                            </label>
-                            <button 
-                              className="dash-chip-btn" 
-                              onClick={() => toggleQuizSetting(quiz.id, 'visible_to_students', quiz.visible_to_students)}
-                              style={{borderColor: quiz.visible_to_students ? 'rgb(var(--admin-mint-rgb))' : 'var(--admin-border)'}}
-                            >
-                              {quiz.visible_to_students ? 'Published' : 'Hidden'}
-                            </button>
-                            <button 
-                              className="dash-chip-btn" 
-                              onClick={() => toggleQuizSetting(quiz.id, 'is_registration_open', quiz.is_registration_open)}
-                              style={{borderColor: quiz.is_registration_open ? 'rgb(var(--admin-cyan-rgb))' : 'var(--admin-border)'}}
-                            >
-                              {quiz.is_registration_open ? 'Reg Open' : 'Reg Closed'}
-                            </button>
-                            <button 
-                              className="dash-chip-btn" 
+                              className="dash-chip-btn glow-gold blinking-border" 
                               onClick={() => {
                                 setSelectedKbcQuizId(quiz.id);
                                 setActiveTab('Live KBC Controller');
                               }}
-                              style={{borderColor: 'rgba(255, 215, 0, 0.6)', color: '#ffd700'}}
+                              style={{
+                                borderColor: 'rgba(255, 215, 0, 0.8)',
+                                color: '#ffd700',
+                                background: 'rgba(255, 215, 0, 0.08)',
+                                fontWeight: '900',
+                                fontSize: '0.88rem',
+                                padding: '0.65rem 1rem',
+                                boxShadow: '0 0 15px rgba(255, 215, 0, 0.1)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.4rem',
+                                cursor: 'pointer',
+                                borderRadius: '8px'
+                              }}
                             >
-                              KBC Console
+                              🎙️ Live KBC Console
                             </button>
-                            <button 
-                              className="dash-chip-btn" 
-                              onClick={() => toggleQuizSetting(quiz.id, 'is_archived', quiz.is_archived)}
-                            >
-                              {quiz.is_archived ? 'Unarchive' : 'Archive'}
-                            </button>
+
+                            {/* Content Creation Controls */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => handleManageQuestionsClick(quiz)}
+                                style={{
+                                  borderColor: 'rgb(var(--admin-cyan-rgb))',
+                                  color: 'rgb(var(--admin-cyan-rgb))',
+                                  background: 'rgba(var(--admin-cyan-rgb), 0.05)',
+                                  fontSize: '0.8rem',
+                                  padding: '0.5rem',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                📋 Questions
+                              </button>
+                              
+                              <label 
+                                className="dash-chip-btn" 
+                                style={{
+                                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                                  color: 'var(--admin-text)',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  padding: '0.5rem',
+                                  textAlign: 'center',
+                                  display: 'block',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                📥 Upload Excel
+                                <input 
+                                  type="file" 
+                                  accept=".xlsx" 
+                                  style={{display: 'none'}} 
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) {
+                                      handleUploadExcel(quiz.id, e.target.files[0]);
+                                      e.target.value = null;
+                                    }
+                                  }} 
+                                />
+                              </label>
+                            </div>
+
+                            {/* Stage & Visibility Controls */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => toggleQuizSetting(quiz.id, 'visible_to_students', quiz.visible_to_students)}
+                                style={{
+                                  borderColor: quiz.visible_to_students ? 'rgb(var(--admin-mint-rgb))' : 'var(--admin-border)',
+                                  color: quiz.visible_to_students ? '#98ff98' : 'var(--admin-muted)',
+                                  background: quiz.visible_to_students ? 'rgba(152,255,152,0.05)' : 'transparent',
+                                  fontSize: '0.78rem',
+                                  padding: '0.5rem',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {quiz.visible_to_students ? '🟢 Published' : '🔴 Hidden'}
+                              </button>
+                              
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => toggleQuizSetting(quiz.id, 'is_registration_open', quiz.is_registration_open)}
+                                style={{
+                                  borderColor: quiz.is_registration_open ? 'rgb(var(--admin-cyan-rgb))' : 'var(--admin-border)',
+                                  color: quiz.is_registration_open ? 'rgb(var(--admin-cyan-rgb))' : 'var(--admin-muted)',
+                                  background: quiz.is_registration_open ? 'rgba(var(--admin-cyan-rgb), 0.05)' : 'transparent',
+                                  fontSize: '0.78rem',
+                                  padding: '0.5rem',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {quiz.is_registration_open ? '🔓 Reg Open' : '🔒 Reg Closed'}
+                              </button>
+                            </div>
+
+                            {/* Utilities & Danger controls */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '0.4rem' }}>
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => handleEditClick(quiz)}
+                                style={{ borderColor: 'rgba(255,255,255,0.4)', color: 'var(--admin-text)', fontSize: '0.75rem', padding: '0.45rem 0.2rem', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                ✏️ Edit
+                              </button>
+                              
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => toggleQuizSetting(quiz.id, 'is_archived', quiz.is_archived)}
+                                style={{
+                                  borderColor: quiz.is_archived ? 'var(--admin-text)' : 'var(--admin-border)',
+                                  color: quiz.is_archived ? 'var(--admin-text)' : 'var(--admin-muted)',
+                                  fontSize: '0.75rem',
+                                  padding: '0.45rem 0.2rem',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {quiz.is_archived ? '📂 Active' : '📁 Arch'}
+                              </button>
+                              
+                              <button 
+                                className="dash-chip-btn" 
+                                onClick={() => handleDeleteClick(quiz.id)}
+                                style={{
+                                  borderColor: 'rgba(255,80,80,0.4)',
+                                  color: 'rgb(255,80,80)',
+                                  background: 'rgba(255,80,80,0.03)',
+                                  fontSize: '0.75rem',
+                                  padding: '0.45rem 0.2rem',
+                                  cursor: 'pointer',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                🗑️ Del
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1153,47 +1379,70 @@ function AdminDashboardPage() {
                   </div>
                 </div>
 
-                <div className="kbc-console-grid" style={kbcQuizDetail?.current_stage?.startsWith('hotseat_') ? { gridTemplateColumns: '320px 1fr' } : undefined}>
-                  {/* Left Column: Stage Controller & Winnings */}
+                {/* Stage Director Board */}
+                <div className="kbc-stage-director glass-card glow-blue" style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid var(--admin-border)',
+                  marginBottom: '2rem',
+                  gap: '1rem',
+                }}>
+                  {KBC_STAGES.map((stage) => {
+                    const isActive = kbcQuizDetail?.current_stage === stage.value;
+                    return (
+                      <button
+                        key={stage.value}
+                        onClick={() => handleUpdateStage(stage.value)}
+                        disabled={kbcLoading}
+                        style={{
+                          background: isActive ? 'rgba(0, 188, 212, 0.15)' : 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${isActive ? 'var(--admin-cyan)' : 'rgba(255,255,255,0.1)'}`,
+                          color: isActive ? '#fff' : 'rgba(255,255,255,0.6)',
+                          padding: '1rem 0.5rem',
+                          borderRadius: '8px',
+                          fontWeight: 'bold',
+                          fontSize: '0.85rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          transform: isActive ? 'scale(1.05)' : 'none',
+                          boxShadow: isActive ? '0 0 15px rgba(0, 188, 212, 0.3)' : 'none'
+                        }}
+                      >
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: isActive ? 'var(--admin-cyan)' : 'transparent',
+                          border: `2px solid ${isActive ? 'var(--admin-cyan)' : 'rgba(255,255,255,0.3)'}`,
+                          boxShadow: isActive ? '0 0 8px var(--admin-cyan)' : 'none'
+                        }} />
+                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{stage.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="kbc-console-grid" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '2rem' }}>
+                  {/* Left Column: Stage Actions & Hotseat Stats/Quick Promote */}
                   <div className="kbc-console-left">
                     <div className="kbc-panel stage-controller-panel">
-                      <h3>Stage Controller</h3>
-                      <p className="panel-subtitle">Click any stage below to switch — no fixed order required</p>
+                      <h3>Stage Director</h3>
+                      <p className="panel-subtitle" style={{ marginBottom: '1.2rem' }}>You are now in full manual control.</p>
 
-                      {/* Advance Stage Button */}
-                      {getNextStageValue(kbcQuizDetail?.current_stage) && (
-                        <button 
-                          className="kbc-advance-btn" 
-                          disabled={kbcLoading}
-                          onClick={() => handleUpdateStage(getNextStageValue(kbcQuizDetail?.current_stage))}
-                        >
-                          ADVANCE TO {getNextStageValue(kbcQuizDetail?.current_stage).replace('_', ' ').toUpperCase()} &rarr;
-                        </button>
-                      )}
-
-                      <div className="kbc-stages-timeline">
-                        {KBC_STAGES.map(stage => {
-                          const isActive = kbcQuizDetail?.current_stage === stage.value;
-                          return (
-                            <button
-                              key={stage.value}
-                              className={`kbc-timeline-item ${isActive ? 'active' : ''}`}
-                              onClick={() => handleUpdateStage(stage.value)}
-                              disabled={kbcLoading}
-                            >
-                              <span className="timeline-dot"></span>
-                              <span className="timeline-label">{stage.label}</span>
-                            </button>
-                          );
-                        })}
+                      <div style={{ background: 'rgba(0, 188, 212, 0.1)', border: '1px solid rgba(0, 188, 212, 0.3)', color: 'var(--admin-cyan)', padding: '1rem', borderRadius: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem', lineHeight: '1.4' }}>
+                        Click any stage on the Director Board above to instantly switch the live event phase.
                       </div>
-                      <p style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--admin-muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
-                        💡 You can run stages in any order — e.g., all 3 FFF rounds first, then hotseat rounds, or alternate as you prefer.
-                      </p>
                     </div>
 
                     {/* Hotseat Info Panel */}
-                    <div className="kbc-panel hotseat-info-panel">
+                    <div className="kbc-panel hotseat-info-panel" style={{ marginTop: '1.5rem' }}>
                       <h3>Active Hotseat Player</h3>
                       {kbcLiveState?.hotseat_attempt ? (
                         <div className="hotseat-metrics">
@@ -1230,7 +1479,67 @@ function AdminDashboardPage() {
                           </div>
                         </div>
                       ) : (
-                        <p className="no-active-msg">No active contestant in hotseat currently.</p>
+                        <div>
+                          <p className="no-active-msg" style={{ margin: '0 0 1rem 0' }}>No active contestant in hotseat currently.</p>
+                          
+                          {/* Quick promote dropdown box */}
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem', marginTop: '1rem' }}>
+                            <h4 style={{ color: '#ffd700', fontSize: '0.85rem', margin: '0 0 0.5rem 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              ⚡ Quick Promote Contestant
+                            </h4>
+                            <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', margin: '0 0 0.8rem 0', lineHeight: 1.4 }}>
+                              Skip Fast FFF round and promote any contender directly to the Hotseat!
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                              <select 
+                                value={selectedPromoteStudentId} 
+                                onChange={e => setSelectedPromoteStudentId(e.target.value)}
+                                style={{
+                                  background: 'rgba(0,0,0,0.5)',
+                                  border: '1px solid var(--admin-border)',
+                                  color: '#fff',
+                                  padding: '0.55rem',
+                                  borderRadius: '6px',
+                                  fontWeight: 'bold',
+                                  width: '100%',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                <option value="">-- Select Contender --</option>
+                                {prelimScoresList.map(score => (
+                                  <option key={score.student_id} value={score.student_id}>
+                                    {score.student_name} ({score.score} pts)
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => {
+                                  if (!selectedPromoteStudentId) {
+                                    showBeautifulPopup("Selection Required", "Please select a contender from the dropdown first.", "error");
+                                    return;
+                                  }
+                                  handlePromoteToHotseat(selectedPromoteStudentId);
+                                }}
+                                disabled={kbcLoading}
+                                style={{
+                                  background: 'linear-gradient(135deg, #ffd700 0%, #ffa500 100%)',
+                                  color: '#000',
+                                  border: 'none',
+                                  fontWeight: '900',
+                                  padding: '0.55rem',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.15)',
+                                  textTransform: 'uppercase'
+                                }}
+                              >
+                                🚀 PROMOTE DIRECTLY
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1868,6 +2177,204 @@ function AdminDashboardPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'System Settings' && (
+          <section className="admin-overview-hero" style={{ marginTop: '2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
+            <div className="overview-copy" style={{ width: '100%' }}>
+              <span className="overview-status" style={{ display: 'inline-block', marginBottom: '1rem' }}>
+                ⚙️ SYSTEM OPERATIONS PANEL
+              </span>
+              <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: '900' }}>System Settings & Preferences</h2>
+              <p style={{ margin: '0.2rem 0 2rem 0', fontSize: '1rem', color: 'var(--admin-muted)' }}>
+                Configure global live tournament thresholds, manage student registrations behaviors, and update administrator profile credentials safely.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                {/* Profile Credentials Settings Card */}
+                <div className="kbc-panel" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '2rem' }}>
+                  <h3 style={{ margin: '0 0 0.5rem 0', color: 'rgb(var(--admin-cyan-rgb))', fontSize: '1.25rem', fontWeight: 'bold' }}>👤 Update Administrator Profile</h3>
+                  <p className="panel-subtitle" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
+                    Modify your contact email address and change login credentials secure validation.
+                  </p>
+
+                  <form onSubmit={handleSaveSettingsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                    <div className="form-group" style={{ textAlign: 'left' }}>
+                      <label className="admin-form-label" style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>Contact Email</label>
+                      <input 
+                        required
+                        type="email"
+                        placeholder="admin@quizverse.com"
+                        className="admin-form-input"
+                        value={settingsForm.email}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, email: e.target.value })}
+                        style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem', borderRadius: '6px', width: '100%' }}
+                      />
+                    </div>
+
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+
+                    <div className="form-group" style={{ textAlign: 'left' }}>
+                      <label className="admin-form-label" style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>Current Password</label>
+                      <input 
+                        type="password"
+                        placeholder="••••••••"
+                        className="admin-form-input"
+                        value={settingsForm.currentPassword}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, currentPassword: e.target.value })}
+                        style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem', borderRadius: '6px', width: '100%' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group" style={{ textAlign: 'left' }}>
+                        <label className="admin-form-label" style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>New Password</label>
+                        <input 
+                          type="password"
+                          placeholder="Min 8 chars"
+                          className="admin-form-input"
+                          value={settingsForm.newPassword}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, newPassword: e.target.value })}
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem', borderRadius: '6px', width: '100%' }}
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ textAlign: 'left' }}>
+                        <label className="admin-form-label" style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--admin-muted)' }}>Confirm New Password</label>
+                        <input 
+                          type="password"
+                          placeholder="••••••••"
+                          className="admin-form-input"
+                          value={settingsForm.confirmNewPassword}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, confirmNewPassword: e.target.value })}
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem', borderRadius: '6px', width: '100%' }}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="dash-chip-btn submit-enroll-btn"
+                      disabled={settingsLoading}
+                      style={{ background: 'rgb(var(--admin-cyan-rgb))', color: '#000', border: 'none', fontWeight: '900', padding: '0.85rem', cursor: 'pointer', borderRadius: '6px', marginTop: '0.5rem', width: '100%', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                    >
+                      {settingsLoading ? 'SAVING PROFILE...' : '💾 SAVE PROFILE'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Event Preferences Configuration Card */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div className="kbc-panel" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '2rem' }}>
+                    <h3 style={{ margin: '0 0 0.5rem 0', color: 'rgb(var(--admin-yellow-rgb))', fontSize: '1.25rem', fontWeight: 'bold' }}>🎮 Live Arena Timing Preferences</h3>
+                    <p className="panel-subtitle" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
+                      Configure default timers and round limits saved to global configuration.
+                    </p>
+
+                    <form onSubmit={handleSavePreferences} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group" style={{ textAlign: 'left' }}>
+                          <label className="admin-form-label" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>Prelim MCQ Timer (sec)</label>
+                          <input 
+                            type="number"
+                            className="admin-form-input"
+                            value={prelimDuration}
+                            onChange={(e) => setPrelimDuration(Math.max(10, parseInt(e.target.value) || 0))}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.6rem', borderRadius: '6px', width: '100%' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ textAlign: 'left' }}>
+                          <label className="admin-form-label" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>FFF Speed Timer (sec)</label>
+                          <input 
+                            type="number"
+                            className="admin-form-input"
+                            value={fffDuration}
+                            onChange={(e) => setFffDuration(Math.max(5, parseInt(e.target.value) || 0))}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.6rem', borderRadius: '6px', width: '100%' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group" style={{ textAlign: 'left' }}>
+                          <label className="admin-form-label" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>Hotseat Q1-Q5 limit (sec)</label>
+                          <input 
+                            type="number"
+                            className="admin-form-input"
+                            value={hotseatQ1Q5Duration}
+                            onChange={(e) => setHotseatQ1Q5Duration(Math.max(10, parseInt(e.target.value) || 0))}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.6rem', borderRadius: '6px', width: '100%' }}
+                          />
+                        </div>
+
+                        <div className="form-group" style={{ textAlign: 'left' }}>
+                          <label className="admin-form-label" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>Hotseat Q6-Q10 limit (sec)</label>
+                          <input 
+                            type="number"
+                            className="admin-form-input"
+                            value={hotseatQ6Q10Duration}
+                            onChange={(e) => setHotseatQ6Q10Duration(Math.max(10, parseInt(e.target.value) || 0))}
+                            style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '0.6rem', borderRadius: '6px', width: '100%' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox"
+                          id="auto-approve-toggle"
+                          checked={autoApproveEnrollment}
+                          onChange={(e) => setAutoApproveEnrollment(e.target.checked)}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
+                        <label htmlFor="auto-approve-toggle" style={{ fontSize: '0.88rem', color: 'var(--admin-text)', fontWeight: 'bold', cursor: 'pointer', textAlign: 'left' }}>
+                          Auto-Approve Manual Registrations (Bypass pending status)
+                        </label>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="dash-chip-btn"
+                        style={{ background: 'rgb(var(--admin-yellow-rgb))', color: '#000', border: 'none', fontWeight: '900', padding: '0.85rem', cursor: 'pointer', borderRadius: '6px', marginTop: '1rem', width: '100%', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                      >
+                        💾 SAVE LIVE TOURNAMENT CONFIG
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Danger Zone System Reset Card */}
+                  <div className="kbc-panel" style={{ background: 'rgba(255, 99, 71, 0.04)', border: '1px solid rgba(255, 99, 71, 0.3)', borderRadius: '12px', padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ textAlign: 'left' }}>
+                      <h3 style={{ margin: '0 0 0.2rem 0', color: '#ff5252', fontSize: '1.1rem', fontWeight: 'bold' }}>⚠️ DANGER ACTION ZONE</h3>
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)', fontWeight: 'bold' }}>
+                        Perform comprehensive event and cache resets. Actions are irreversible.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleResetLiveEventState}
+                      style={{
+                        background: 'linear-gradient(135deg, #ff5252 0%, #c62828 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        fontWeight: '900',
+                        padding: '0.65rem 1.25rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 10px rgba(255, 82, 82, 0.25)',
+                        textTransform: 'uppercase',
+                        fontSize: '0.8rem',
+                        letterSpacing: '0.05em'
+                      }}
+                    >
+                      Reset KBC States
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         )}
@@ -2519,6 +3026,97 @@ function AdminDashboardPage() {
         </div>
       )}
     </main>
+  );
+}
+
+function AdminDashboardPage() {
+  const [popupConfig, setPopupConfig] = useState(null);
+
+  const showBeautifulPopup = (title, message, type = 'info', onConfirm = null, onCancel = null, confirmText = 'OK', cancelText = 'Cancel') => {
+    setPopupConfig({ title, message, type, onConfirm, onCancel, confirmText, cancelText });
+  };
+
+  useEffect(() => {
+    const originalAlert = window.alert;
+    window.alert = (message) => {
+      showBeautifulPopup("System Alert", message, 'info');
+    };
+    return () => {
+      window.alert = originalAlert;
+    };
+  }, []);
+
+  return (
+    <>
+      <AdminDashboardInner showBeautifulPopup={showBeautifulPopup} />
+      {popupConfig && (
+        <div className="modal-overlay" style={{ zIndex: 99999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className={`modal-content glass-card glow-${popupConfig.type === 'error' ? 'red' : popupConfig.type === 'success' ? 'green' : popupConfig.type === 'warning' ? 'yellow' : 'blue'}`} style={{ maxWidth: '450px', width: '90%', padding: '2rem', textAlign: 'center', animation: 'scaleUp 0.3s ease', borderRadius: '12px' }}>
+            <h2 style={{
+              color: popupConfig.type === 'error' ? 'var(--admin-red)' : popupConfig.type === 'success' ? '#4caf50' : popupConfig.type === 'warning' ? '#ff9800' : 'var(--admin-cyan)',
+              marginTop: 0,
+              marginBottom: '1rem',
+              fontSize: '1.8rem',
+              letterSpacing: '0.05em',
+              fontWeight: '900'
+            }}>
+              {popupConfig.type === 'error' ? '🚨 ' : popupConfig.type === 'success' ? '🎉 ' : popupConfig.type === 'warning' ? '⚠️ ' : '💡 '}
+              {popupConfig.title}
+            </h2>
+            <p style={{ fontSize: '1.05rem', lineHeight: '1.5', margin: '0 0 2rem 0', color: 'rgba(255, 255, 255, 0.95)', whiteSpace: 'pre-line' }}>
+              {popupConfig.message}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+              {popupConfig.onCancel && (
+                <button 
+                  className="prelim-reset-btn" 
+                  onClick={() => {
+                    popupConfig.onCancel();
+                    setPopupConfig(null);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    color: '#fff',
+                    padding: '0.6rem 2rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {popupConfig.cancelText || 'Cancel'}
+                </button>
+              )}
+              <button 
+                className="btn-submit" 
+                onClick={() => {
+                  if (popupConfig.onConfirm) popupConfig.onConfirm();
+                  setPopupConfig(null);
+                }}
+                style={{
+                  padding: '0.6rem 2.5rem',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  background: popupConfig.type === 'error' 
+                    ? 'linear-gradient(135deg, #f44336 0%, #c62828 100%)' 
+                    : popupConfig.type === 'success' 
+                      ? 'linear-gradient(135deg, #4caf50 0%, #2e7d32 100%)' 
+                      : popupConfig.type === 'warning'
+                        ? 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)'
+                        : 'linear-gradient(135deg, #00bcd4 0%, #0097a7 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: '900',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                }}
+              >
+                {popupConfig.confirmText || 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

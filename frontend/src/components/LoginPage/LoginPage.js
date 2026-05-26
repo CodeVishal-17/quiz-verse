@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginStudent, saveAuthSession } from '../../api/auth';
+import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './LoginPage.css';
 
 function LoginPage() {
@@ -46,16 +47,15 @@ function LoginPage() {
   };
 
   return (
-    <main className="login-page">
+    <main className="login-page kbc-broadcast">
       <div className="login-background">
-        <div className="bg-shape shape-mint" />
-        <div className="bg-particles" />
+        <KbcStageFx />
       </div>
 
-      <div className="login-container">
+      <div className="login-container kbc-frame-panel">
         <div className="login-header">
-          <div className="header-icon">A</div>
-          <h1 className="login-title">PLAYER ACCESS</h1>
+          <div className="header-icon">₹</div>
+          <h1 className="login-title kbc-title-shimmer">Player Access</h1>
           <p className="login-subtitle">Enter your credentials to resume your run in the arena.</p>
         </div>
 

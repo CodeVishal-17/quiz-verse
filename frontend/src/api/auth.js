@@ -46,6 +46,16 @@ export function getCurrentUser(token) {
   });
 }
 
+export function updateUserCredentials(token, payload) {
+  return request('/users/me/', {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getSchools() {
   return request('/schools/', {
     method: 'GET',

@@ -1,14 +1,13 @@
 .registration-page {
   min-height: 100vh;
-  width: 100vw;
-  background-color: var(--bg-cream); /* Keeping the pastel background from the plan */
-  color: var(--bg-dark);
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow-x: hidden;
   padding: 3rem 2rem;
+  background: var(--kbc-navy-deep);
 }
 
 .registration-background {
@@ -16,81 +15,91 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  background:
+    radial-gradient(circle at 80% 20%, rgba(212, 160, 23, 0.12), transparent 50%),
+    repeating-radial-gradient(circle at 50% 120%, transparent 0, transparent 40px, rgba(212, 160, 23, 0.03) 41px, transparent 42px);
 }
 
 .bg-shape {
   position: absolute;
-  filter: blur(80px);
-  opacity: 0.2;
+  filter: blur(100px);
+  opacity: 0.15;
 }
 
 .shape-pink-large {
-  width: 50vw;
-  height: 50vw;
-  background-color: var(--pink);
+  width: 45vw;
+  height: 45vw;
+  background: var(--kbc-gold);
   border-radius: 50%;
-  top: -15vw;
+  top: -10vw;
   right: -10vw;
-  animation: floatBG 25s ease-in-out infinite alternate;
 }
 
 .shape-mint-square {
   width: 40vw;
   height: 40vw;
-  background-color: var(--mint);
+  background: var(--kbc-sapphire);
   bottom: -10vw;
-  left: -5vw;
-  transform: rotate(15deg);
-  animation: floatBG 20s ease-in-out infinite alternate-reverse;
-}
-
-.bg-particles {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(17, 17, 17, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17, 17, 17, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
+  left: -10vw;
+  border-radius: 50%;
 }
 
 .registration-container {
   position: relative;
   z-index: 10;
   width: 100%;
-  max-width: 800px;
-  background-color: var(--bg-dark);
-  color: var(--text-light);
-  padding: 4rem;
-  border-radius: 24px;
-  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  max-width: 780px;
+  padding: 3.5rem 3rem;
+  border-radius: 8px;
+  background: linear-gradient(165deg, rgba(6, 16, 43, 0.95), rgba(2, 10, 26, 0.98));
+  border: 2px solid var(--kbc-gold);
+  box-shadow: 
+    inset 0 0 20px rgba(212, 160, 23, 0.1),
+    0 25px 60px rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(212, 160, 23, 0.15);
+}
+
+.registration-container::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(212, 160, 23, 0.3);
+  border-radius: 4px;
+  pointer-events: none;
 }
 
 .registration-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 2.5rem;
 }
 
 .header-icon {
-  font-size: 2.5rem;
-  color: var(--pink);
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 900;
+  color: var(--kbc-gold-bright);
   margin-bottom: 1rem;
-  font-family: monospace;
-  animation: floatIcon 6s ease-in-out infinite;
+  text-shadow: 0 0 20px rgba(212, 160, 23, 0.6);
 }
 
 .registration-title {
-  font-size: 2.5rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  color: var(--bg-cream);
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
   margin: 0 0 0.5rem;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, var(--kbc-gold-bright), var(--kbc-gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .registration-subtitle {
   font-size: 1rem;
-  color: var(--text-muted);
-  line-height: 1.5;
+  color: var(--kbc-cream-soft);
+  opacity: 0.8;
   margin: 0;
+  font-family: var(--font-ui);
 }
 
 .registration-form {
@@ -105,23 +114,18 @@
   gap: 1.5rem;
 }
 
-.form-row.three-col {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.form-row.four-col {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
+.form-row.three-col { grid-template-columns: 1fr 1fr 1fr; }
+.form-row.four-col { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 .form-error {
   margin: 0;
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(255, 182, 193, 0.35);
-  border-radius: 12px;
-  background-color: rgba(255, 182, 193, 0.08);
-  color: var(--pink);
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
   font-size: 0.95rem;
-  line-height: 1.4;
+  text-align: center;
 }
 
 .form-group {
@@ -130,103 +134,108 @@
   gap: 0.5rem;
 }
 
-.form-group.full-width {
-  width: 100%;
-}
+.form-group.full-width { width: 100%; }
 
 .form-group label {
-  font-family: monospace;
+  font-family: var(--font-ui);
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.15em;
-  color: var(--pink);
+  text-transform: uppercase;
+  color: var(--kbc-gold);
 }
 
 .form-group input,
 .form-group select {
-  background-color: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: var(--bg-cream);
-  font-size: 1rem;
-  padding: 1rem 1.25rem;
-  transition: var(--transition);
-  font-family: inherit;
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  border-bottom: 2px solid rgba(212, 160, 23, 0.3);
+  border-radius: 4px 4px 0 0;
+  color: var(--kbc-cream);
+  font-size: 1.1rem;
+  padding: 1rem 1.2rem;
+  transition: all 0.3s ease;
   appearance: none;
+  font-family: var(--font-ui);
 }
 
 .form-group select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23fdfbf7'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23ffd700'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 1rem center;
+  background-position: right 1.2rem center;
   background-size: 1.2rem;
   padding-right: 3rem;
 }
 
 .form-group select option {
-  background-color: var(--bg-dark);
-  color: var(--bg-cream);
+  background: var(--kbc-navy-deep);
+  color: var(--kbc-cream);
 }
 
-.form-group input::placeholder,
-.form-group select::placeholder {
-  color: rgba(255, 255, 255, 0.2);
-}
+.form-group input::placeholder { color: rgba(255, 248, 225, 0.2); }
 
 .form-group input:focus,
 .form-group select:focus {
-  outline: none;
-  border-color: var(--pink);
-  background-color: rgba(255, 182, 193, 0.05);
-  box-shadow: 0 0 0 4px rgba(255, 182, 193, 0.1);
+  border-bottom-color: var(--kbc-gold-bright);
+  background: rgba(212, 160, 23, 0.05);
+  box-shadow: inset 0 -20px 20px -20px rgba(212, 160, 23, 0.2);
 }
 
 .form-group select:disabled,
 .btn-submit.btn-pink:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
-.form-actions {
-  margin-top: 1.5rem;
-}
+.form-actions { margin-top: 1.5rem; }
 
 .btn-submit.btn-pink {
   width: 100%;
-  background-color: var(--pink);
-  color: var(--bg-dark);
+  padding: 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font-ui);
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.15em;
-  padding: 1.25rem;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition: var(--transition);
+  text-transform: uppercase;
+  background: linear-gradient(180deg, var(--kbc-gold-bright) 0%, var(--kbc-gold) 100%);
+  color: var(--kbc-navy-deep);
+  border: 1px solid var(--kbc-cream);
+  box-shadow: 0 4px 15px rgba(212, 160, 23, 0.3), inset 0 2px 0 rgba(255,255,255,0.4);
+  transition: all 0.2s ease;
 }
 
-.btn-submit.btn-pink:hover {
+.btn-submit.btn-pink:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(255, 182, 193, 0.3);
+  box-shadow: 0 6px 20px rgba(212, 160, 23, 0.5), inset 0 2px 0 rgba(255,255,255,0.6);
+  filter: brightness(1.1);
+}
+
+.btn-submit.btn-pink:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 2px 5px rgba(212, 160, 23, 0.3);
 }
 
 .registration-footer {
   margin-top: 2.5rem;
   text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
   padding-top: 1.5rem;
+  border-top: 1px solid rgba(212, 160, 23, 0.2);
 }
 
 .link-secondary {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--text-muted);
-  transition: var(--transition);
+  color: var(--kbc-cream-soft);
+  opacity: 0.7;
+  transition: all 0.3s ease;
 }
 
 .link-secondary:hover {
-  color: var(--pink);
+  color: var(--kbc-gold-bright);
+  opacity: 1;
 }
 
 @media (max-width: 768px) {
@@ -234,14 +243,9 @@
   .form-row.three-col,
   .form-row.four-col {
     grid-template-columns: 1fr;
-    gap: 1.5rem;
+    gap: 1rem;
   }
-  
   .registration-container {
-    padding: 3rem 2rem;
-  }
-  
-  .registration-title {
-    font-size: 2rem;
+    padding: 2.5rem 1.5rem;
   }
 }

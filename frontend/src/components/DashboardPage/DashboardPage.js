@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAuthSession } from '../../api/auth';
 import { getPublishedQuizzes, getMyRegistrations, registerForQuiz, processMockPayment } from '../../api/quizzes';
+import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './DashboardPage.css';
 
 const SYMBOLS = {
@@ -224,7 +225,8 @@ function DashboardPage() {
           myRegistrations.map((reg) => {
             const hasPaid = reg.payment_status === 'paid';
             const playerID = reg.player_id || 'Awaiting Payment';
-            const password = reg.quiz_details?.event_password || 'Not Required';
+            const actualPassword = reg.quiz_details?.event_password || '';
+            const passwordDisplay = actualPassword || 'Not Required';
             
             return (
               <div
@@ -246,7 +248,7 @@ function DashboardPage() {
                     </div>
                     <div className="credential-pill password-pill">
                       <span className="pill-label">Event Password</span>
-                      <strong className="pill-val">{password}</strong>
+                      <strong className="pill-val">{passwordDisplay}</strong>
                     </div>
                   </div>
                   
@@ -270,7 +272,7 @@ function DashboardPage() {
                       className="enter-arena-btn-card"
                       onClick={() => {
                         localStorage.setItem(`quiz-${reg.quiz_details?.id}-player-id`, playerID);
-                        localStorage.setItem(`quiz-${reg.quiz_details?.id}-event-password`, password);
+                        localStorage.setItem(`quiz-${reg.quiz_details?.id}-event-password`, actualPassword);
                       }}
                     >
                       ENTER ARENA &rarr;
@@ -297,11 +299,12 @@ function DashboardPage() {
 
   return (
     <main
-      className={`dashboard-page ${isLight ? 'theme-light' : 'theme-dark'}`}
+      className="dashboard-page kbc-broadcast theme-dark"
       style={{ '--core-x': `${coreOffset.x}px`, '--core-y': `${coreOffset.y}px` }}
       onPointerMove={handlePointerMove}
     >
       <div className="dashboard-background" aria-hidden="true">
+        <KbcStageFx intensity="lite" />
         <div className="ambient-core">
           <div className="ambient-core-ring ambient-ring-one" />
           <div className="ambient-core-ring ambient-ring-two" />
@@ -338,17 +341,6 @@ function DashboardPage() {
           </div>
 
           <div className="topbar-actions" aria-label="Dashboard utilities">
-            <button
-              className="theme-toggle"
-              type="button"
-              title="Dark or light mode"
-              aria-pressed={isLight}
-              onClick={toggleTheme}
-            >
-              <span>{isLight ? SYMBOLS.sun : SYMBOLS.moon}</span>
-            </button>
-            <button type="button" title="Notifications">{SYMBOLS.bell}</button>
-            <button type="button" title="Settings">{SYMBOLS.gear}</button>
             <Link to="/login" title="Logout">{SYMBOLS.exit}</Link>
           </div>
         </header>
@@ -421,7 +413,7 @@ function DashboardPage() {
                       style={{marginTop: '1.25rem', width: '100%', display: 'block', textAlign: 'center', textDecoration: 'none', background: 'linear-gradient(135deg, #ffd700, #d4af37)', color: '#000', fontWeight: 'bold'}}
                       onClick={() => {
                         localStorage.setItem(`quiz-${selectedQuiz.id}-player-id`, registration.player_id);
-                        localStorage.setItem(`quiz-${selectedQuiz.id}-event-password`, selectedQuiz.event_password);
+                        localStorage.setItem(`quiz-${selectedQuiz.id}-event-password`, selectedQuiz.event_password || '');
                       }}
                     >
                       ENTER ARENA

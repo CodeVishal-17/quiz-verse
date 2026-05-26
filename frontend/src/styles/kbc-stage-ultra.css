@@ -1,0 +1,194 @@
+/* KBC polish — mostly static; motion only on hover / one-time entrance */
+
+@keyframes kbcFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* One-time entrance only (no infinite loops) */
+.kbc-frame-panel,
+.leaderboard-panel,
+.login-container,
+.registration-container,
+.glass-card,
+.hotseat-ladder-panel {
+  animation: kbcFadeUp 0.5s ease both;
+}
+
+.landing-content > * {
+  animation: kbcFadeUp 0.45s ease both;
+}
+.landing-content > *:nth-child(1) { animation-delay: 0.04s; }
+.landing-content > *:nth-child(2) { animation-delay: 0.08s; }
+.landing-content > *:nth-child(3) { animation-delay: 0.12s; }
+.landing-content > *:nth-child(4) { animation-delay: 0.16s; }
+
+.flashcard,
+.normal-card {
+  animation: kbcFadeUp 0.4s ease both;
+}
+
+/* Static gold title — no shimmer loop */
+.kbc-title-shimmer {
+  background: linear-gradient(180deg, var(--kbc-cream) 0%, var(--kbc-gold-bright) 50%, var(--kbc-gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Buttons — no perpetual shine */
+.btn-enter,
+.btn-submit:not(.btn-walkaway),
+.btn-submit.btn-pink {
+  background: linear-gradient(180deg, var(--kbc-gold-bright) 0%, var(--kbc-gold) 45%, var(--kbc-amber) 100%) !important;
+  color: var(--kbc-navy-deep) !important;
+  border: 1px solid var(--kbc-gold-dark) !important;
+  box-shadow: 0 4px 0 var(--kbc-gold-dark), 0 6px 20px rgba(212, 160, 23, 0.25) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.btn-enter::after,
+.btn-submit:not(.btn-walkaway):after,
+.btn-submit.btn-pink::after {
+  display: none;
+}
+
+.btn-enter:hover,
+.btn-submit:not(.btn-walkaway):hover:not(:disabled),
+.btn-submit.btn-pink:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* Hot seat — static frames */
+.kbc-question-frame {
+  border: 2px solid rgba(212, 160, 23, 0.45) !important;
+  border-radius: 6px !important;
+  background: linear-gradient(165deg, rgba(6, 16, 43, 0.98), rgba(2, 10, 26, 0.95)) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  animation: none !important;
+}
+
+.kbc-question-frame::before,
+.kbc-question-frame::after {
+  display: none !important;
+}
+
+.kbc-choices-grid .kbc-choice {
+  animation: none !important;
+}
+
+.kbc-choice,
+.arena-choice-btn.kbc-choice {
+  clip-path: polygon(24px 0%, calc(100% - 24px) 0%, 100% 50%, calc(100% - 24px) 100%, 24px 100%, 0% 50%) !important;
+  background: linear-gradient(180deg, rgba(14, 26, 69, 0.98), rgba(6, 16, 43, 1)) !important;
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.35) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+}
+
+.kbc-choice::after {
+  display: none !important;
+}
+
+.kbc-choice:hover:not(:disabled):not(.disabled) {
+  transform: translateX(3px) !important;
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.6), 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+.kbc-choice.selected {
+  background: linear-gradient(180deg, rgba(212, 160, 23, 0.3), rgba(6, 16, 43, 0.98)) !important;
+  box-shadow: 0 0 0 2px var(--kbc-gold-bright) !important;
+  animation: none !important;
+  transform: none !important;
+}
+
+.ladder-step.active {
+  background: linear-gradient(90deg, rgba(212, 160, 23, 0.35), rgba(212, 160, 23, 0.1)) !important;
+  color: var(--kbc-gold-bright) !important;
+  animation: none !important;
+}
+
+.hotseat-ladder-panel::after,
+.hotseat-ladder-panel::before,
+.hotseat-console-panel::before,
+.hotseat-console-panel::after {
+  display: none !important;
+}
+
+.btn-lifeline {
+  animation: none !important;
+}
+
+.btn-lifeline:hover:not(.used):not(.disabled) {
+  transform: scale(1.06) !important;
+}
+
+.arena-timer {
+  animation: none !important;
+}
+
+.kbc-crest {
+  animation: none !important;
+}
+
+.arena-progress-fill::after {
+  display: none;
+}
+
+.badge-pulse,
+.content-badge,
+.panel-status {
+  animation: none !important;
+}
+
+.mantra-line,
+.mantra-scan span,
+.header-icon,
+.shape-pink,
+.shape-mint {
+  animation: none !important;
+}
+
+.rank-1::after {
+  display: none;
+}
+
+.glass-card::after {
+  display: none;
+}
+
+.arena-topbar::after {
+  display: none !important;
+}
+
+.kbc-broadcast .arena-grid {
+  animation: none !important;
+}
+
+.kbc-broadcast .arena-orb {
+  animation: none !important;
+  opacity: 0.2;
+}
+
+/* Reduce GPU load on cards */
+.glass-card,
+.leaderboard-panel,
+.login-container,
+.registration-container,
+.dashboard-sidebar,
+.admin-sidebar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.arena-page .glass-card,
+.arena-topbar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
