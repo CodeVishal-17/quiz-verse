@@ -264,6 +264,17 @@ class HotseatAttempt(models.Model):
     # Pre-selected choice (visible to admin host before locking)
     preselected_choice = models.ForeignKey('Choice', null=True, blank=True, on_delete=models.SET_NULL, related_name='hotseat_preselections')
     
+    # Stateful lifeline request-approval fields
+    pending_lifeline_type = models.CharField(max_length=20, default="", blank=True)
+    pending_lifeline_switch_category = models.CharField(max_length=100, default="", blank=True)
+    lifeline_request_status = models.CharField(max_length=20, default="none") # 'none', 'requested', 'approved', 'rejected'
+    approved_lifeline_data = models.JSONField(default=dict, blank=True)
+    
+    # Cinematic timer & question visibility pacing
+    timer_is_paused = models.BooleanField(default=False)
+    options_visible = models.BooleanField(default=False)
+    showing_question = models.BooleanField(default=True)
+
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 

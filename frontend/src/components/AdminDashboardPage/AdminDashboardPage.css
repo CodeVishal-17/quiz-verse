@@ -1,17 +1,17 @@
 .admin-dashboard-page {
-  --admin-bg: #121111;
-  --admin-bg-deep: #0a0a09;
-  --admin-surface: rgba(25, 24, 24, 0.72);
-  --admin-surface-soft: rgba(253, 251, 247, 0.045);
-  --admin-border: rgba(253, 251, 247, 0.09);
-  --admin-text: #fdfbf7;
-  --admin-muted: rgba(253, 251, 247, 0.58);
-  --admin-shadow: 0 26px 90px rgba(0, 0, 0, 0.36);
-  --admin-pink-rgb: 255, 182, 193;
-  --admin-mint-rgb: 152, 255, 152;
-  --admin-cyan-rgb: 125, 232, 235;
-  --admin-yellow-rgb: 255, 223, 137;
-  
+  --admin-bg: #0a1145;
+  --admin-bg-deep: #050a2e;
+  --admin-surface: rgba(14, 22, 80, 0.88);
+  --admin-surface-soft: rgba(212, 175, 55, 0.06);
+  --admin-border: rgba(212, 175, 55, 0.28);
+  --admin-text: #fff8e7;
+  --admin-muted: rgba(245, 236, 214, 0.62);
+  --admin-shadow: 0 26px 90px rgba(5, 10, 46, 0.5);
+  --admin-pink-rgb: 255, 179, 0;
+  --admin-mint-rgb: 21, 101, 192;
+  --admin-cyan-rgb: 66, 165, 245;
+  --admin-yellow-rgb: 255, 213, 79;
+
   min-height: 100vh;
   width: 100vw;
   position: relative;
@@ -19,26 +19,30 @@
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
   background:
-    radial-gradient(circle at 10% 20%, rgba(var(--admin-cyan-rgb), 0.1), transparent 30%),
-    radial-gradient(circle at 90% 80%, rgba(var(--admin-pink-rgb), 0.08), transparent 30%),
-    linear-gradient(135deg, var(--admin-bg) 0%, #151413 50%, var(--admin-bg-deep) 100%);
+    radial-gradient(ellipse 80% 45% at 50% 0%, rgba(212, 175, 55, 0.15), transparent 50%),
+    radial-gradient(circle at 10% 70%, rgba(var(--admin-mint-rgb), 0.1), transparent 35%),
+    linear-gradient(180deg, var(--admin-bg) 0%, var(--admin-bg-deep) 100%);
   color: var(--admin-text);
   transition: background 700ms ease, color 700ms ease;
+  font-family: var(--font-cinematic);
 }
 
 .admin-dashboard-page.theme-light {
-  --admin-bg: #f5f6f8;
-  --admin-bg-deep: #e8eaee;
-  --admin-surface: rgba(255, 255, 255, 0.82);
-  --admin-surface-soft: rgba(255, 255, 255, 0.58);
-  --admin-border: rgba(30, 40, 50, 0.12);
-  --admin-text: #1a1e23;
-  --admin-muted: rgba(26, 30, 35, 0.68);
-  --admin-shadow: 0 24px 80px rgba(30, 40, 50, 0.1), 0 8px 24px rgba(30, 40, 50, 0.04);
+  --admin-bg: #f2f5fa;
+  --admin-bg-deep: #d9e2f2;
+  --admin-surface: #ffffff;
+  --admin-surface-soft: rgba(10, 17, 69, 0.05);
+  --admin-border: rgba(196, 109, 28, 0.25);
+  --admin-text: #0b1035;
+  --admin-muted: #52609c;
+  --admin-shadow: 0 20px 48px rgba(10, 17, 69, 0.06);
+  --admin-pink-rgb: 196, 109, 28;
+  --admin-mint-rgb: 0, 119, 182;
+  --admin-cyan-rgb: 0, 180, 216;
   background:
-    radial-gradient(circle at 10% 20%, rgba(var(--admin-cyan-rgb), 0.25), transparent 30%),
-    radial-gradient(circle at 90% 80%, rgba(var(--admin-pink-rgb), 0.2), transparent 30%),
-    linear-gradient(135deg, var(--admin-bg) 0%, #ffffff 50%, var(--admin-bg-deep) 100%);
+    radial-gradient(circle at 18% 12%, rgba(196, 109, 28, 0.08), transparent 38%),
+    radial-gradient(circle at 87% 7%, rgba(0, 119, 182, 0.06), transparent 34%),
+    linear-gradient(135deg, var(--admin-bg) 0%, #e6ecf7 50%, var(--admin-bg-deep) 100%);
 }
 
 .admin-dashboard-background {
@@ -124,6 +128,7 @@
   align-items: center;
   gap: 0.85rem;
   color: var(--admin-text);
+  font-family: var(--font-display);
   font-size: 1.2rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -392,7 +397,7 @@
   font-family: monospace;
   font-size: 0.8rem;
   font-weight: 900;
-  border-radius: 4px;
+  border-radius: 50px;
   margin-bottom: 1rem;
 }
 
@@ -515,7 +520,7 @@
   background: var(--admin-surface-soft);
   border: 1px solid var(--admin-border);
   color: var(--admin-text);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 
 .admin-form-input:focus {
@@ -545,7 +550,7 @@
   font-weight: bold;
   font-size: 1rem;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 8px;
   transition: all 0.2s ease;
 }
 
@@ -565,7 +570,7 @@
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -673,8 +678,8 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 1rem;
-  background: rgba(152, 255, 152, 0.1);
-  border: 1px solid rgba(152, 255, 152, 0.3);
+  background: rgba(0, 180, 216, 0.1);
+  border: 1px solid rgba(0, 180, 216, 0.3);
   color: rgb(var(--admin-mint-rgb));
   font-family: monospace;
   font-size: 0.8rem;
@@ -888,7 +893,7 @@
 }
 
 .text-green {
-  color: #98ff98 !important;
+  color: var(--kbc-sky) !important;
 }
 
 .lifelines-status {
@@ -921,9 +926,9 @@
 }
 
 .lifeline-badge.ready {
-  background: rgba(152, 255, 152, 0.08);
-  border: 1px solid rgba(152, 255, 152, 0.25);
-  color: #98ff98;
+  background: rgba(0, 180, 216, 0.08);
+  border: 1px solid rgba(0, 180, 216, 0.25);
+  color: var(--kbc-sky);
 }
 
 .lifeline-badge.used {
@@ -983,7 +988,7 @@
 }
 
 .text-pink {
-  color: #ffb6c1 !important;
+  color: var(--kbc-gold) !important;
 }
 
 .text-center {
@@ -1119,9 +1124,9 @@
 
 .badge-correct {
   padding: 0.25rem 0.5rem;
-  background: rgba(152, 255, 152, 0.12);
-  border: 1px solid rgba(152, 255, 152, 0.3);
-  color: #98ff98;
+  background: rgba(0, 180, 216, 0.12);
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  color: var(--kbc-sky);
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 900;
@@ -1205,8 +1210,8 @@
 }
 
 .hotseat-choice-card.correct {
-  border-color: rgba(152, 255, 152, 0.4);
-  background: rgba(152, 255, 152, 0.08);
+  border-color: rgba(0, 180, 216, 0.4);
+  background: rgba(0, 180, 216, 0.08);
 }
 
 .choice-lbl {
@@ -1218,7 +1223,7 @@
   font-size: 0.75rem;
   font-family: monospace;
   font-weight: 900;
-  color: #98ff98;
+  color: var(--kbc-sky);
   letter-spacing: 0.05em;
 }
 
@@ -1488,9 +1493,9 @@
 }
 
 .status-pill.completed {
-  background: rgba(152, 255, 152, 0.1);
-  border: 1px solid rgba(152, 255, 152, 0.3);
-  color: #98ff98;
+  background: rgba(0, 180, 216, 0.1);
+  border: 1px solid rgba(0, 180, 216, 0.3);
+  color: var(--kbc-sky);
 }
 
 .status-pill.in-progress {

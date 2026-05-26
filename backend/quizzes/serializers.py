@@ -121,7 +121,14 @@ class HotseatAttemptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HotseatAttempt
-        fields = ['id', 'quiz', 'student', 'student_name', 'player_id', 'batch_number', 'current_question_index', 'score', 'status', 'lifeline_5050_used', 'lifeline_poll_used', 'lifeline_switch_used', 'started_at', 'completed_at']
+        fields = [
+            'id', 'quiz', 'student', 'student_name', 'player_id', 'batch_number', 
+            'current_question_index', 'score', 'status', 'lifeline_5050_used', 
+            'lifeline_poll_used', 'lifeline_switch_used', 'started_at', 'completed_at',
+            'pending_lifeline_type', 'pending_lifeline_switch_category', 
+            'lifeline_request_status', 'approved_lifeline_data',
+            'timer_is_paused', 'options_visible', 'showing_question'
+        ]
         read_only_fields = ['started_at', 'completed_at']
 
     def get_player_id(self, obj):

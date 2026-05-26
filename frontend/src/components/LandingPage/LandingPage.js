@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './LandingPage.css';
 
 const SYMBOLS = {
@@ -21,22 +22,22 @@ function LandingPage() {
     {
       symbol: SYMBOLS.triangle,
       value: '3',
-      label: 'Rounds',
-      detail: 'Qualifier. Survival. Final Showdown.',
+      label: 'Lifelines',
+      detail: '50:50, Audience Poll, Switch Question.',
       tone: 'pink',
     },
     {
       symbol: SYMBOLS.circle,
-      value: '2',
-      label: 'Qualifier Zones',
-      detail: 'Top contenders advance toward the final arena.',
+      value: '1',
+      label: 'Hotseat',
+      detail: 'The ultimate stage of survival.',
       tone: 'mint',
     },
     {
       symbol: SYMBOLS.square,
       value: '1',
-      label: 'Champion Title',
-      detail: 'One player rises above all.',
+      label: 'Codepati',
+      detail: 'One player rises above all to win the grand title.',
       tone: 'cream',
     },
   ];
@@ -101,23 +102,15 @@ function LandingPage() {
   const schoolLine = (school, year) => `${school} ${SYMBOLS.dot} ${year}`;
 
   return (
-    <main className="landing-page">
+    <main className="landing-page kbc-broadcast">
       <div className="landing-background">
+        <KbcStageFx />
         <div className="bg-shape shape-pink" />
         <div className="bg-shape shape-mint" />
-        <div className="bg-particles" />
-        <div className="system-gridlines" />
-        <div className="environment-symbol symbol-triangle">{SYMBOLS.triangle}</div>
-        <div className="environment-symbol symbol-circle">{SYMBOLS.circle}</div>
-        <div className="environment-symbol symbol-square">{SYMBOLS.square}</div>
-        <div className="environment-symbol symbol-code">{'{ }'}</div>
-        <div className="environment-symbol symbol-query">?</div>
-        <div className="environment-panel panel-one" />
-        <div className="environment-panel panel-two" />
-        <div className="environment-panel panel-three" />
       </div>
 
       <section className="landing-hero-section">
+        <div className="kbc-hero-frame" aria-hidden="true" />
         <div className="landing-container">
           <div className="landing-content">
             <div className="content-badge">
@@ -125,12 +118,12 @@ function LandingPage() {
               ROUND ACCESS NOW OPEN
             </div>
 
-            <h1 className="landing-title">QuizVerse</h1>
+            <h1 className="landing-title kbc-title-shimmer">QuizVerse</h1>
 
             <div className="landing-description">
               <p className="desc-highlight">Monthly campus challenge.</p>
               <p className="desc-main">
-                A real immersive campus competition universe inspired by survival-game aesthetics.
+                The ultimate campus quiz arena — inspired by Kaun Banega Codepati. Compete live, climb the ladder, claim the title.
               </p>
             </div>
 
@@ -153,66 +146,6 @@ function LandingPage() {
                 <span>{SYMBOLS.triangle}</span>
                 <span>{SYMBOLS.circle}</span>
                 <span>{SYMBOLS.square}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="landing-leaderboard">
-            <div className="leaderboard-panel">
-              <div className="panel-header">
-                <h2 className="panel-title">TOP PLAYERS RISING</h2>
-                <span className="panel-status">LIVE RANKINGS</span>
-              </div>
-
-              <div className="ranking-list">
-                <div className="rank-card rank-1">
-                  <div className="rank-pos">01</div>
-                  <div className="rank-info">
-                    <span className="player-name">Aria Sharma</span>
-                    <span className="player-school">{schoolLine('SOET', 'Year 3')}</span>
-                  </div>
-                  <div className="rank-score">9,450</div>
-                </div>
-
-                <div className="rank-card rank-2">
-                  <div className="rank-pos">02</div>
-                  <div className="rank-info">
-                    <span className="player-name">Kabir Singh</span>
-                    <span className="player-school">{schoolLine('SOSC', 'Year 2')}</span>
-                  </div>
-                  <div className="rank-score">8,120</div>
-                </div>
-
-                <div className="rank-card rank-3">
-                  <div className="rank-pos">03</div>
-                  <div className="rank-info">
-                    <span className="player-name">Meera Patel</span>
-                    <span className="player-school">{schoolLine('SOM', 'Year 4')}</span>
-                  </div>
-                  <div className="rank-score">7,900</div>
-                </div>
-
-                <div className="rank-card">
-                  <div className="rank-pos">04</div>
-                  <div className="rank-info">
-                    <span className="player-name">Rohan Gupta</span>
-                    <span className="player-school">{schoolLine('SOET', 'Year 1')}</span>
-                  </div>
-                  <div className="rank-score">7,200</div>
-                </div>
-
-                <div className="rank-card">
-                  <div className="rank-pos">05</div>
-                  <div className="rank-info">
-                    <span className="player-name">Sneha Reddy</span>
-                    <span className="player-school">{schoolLine('SOP', 'Year 3')}</span>
-                  </div>
-                  <div className="rank-score">6,400</div>
-                </div>
-              </div>
-
-              <div className="panel-footer">
-                <button className="btn-view-all">VIEW FULL LEADERBOARD</button>
               </div>
             </div>
           </div>

@@ -474,6 +474,12 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 "poll_used": attempt.lifeline_poll_used,
                 "switch_used": attempt.lifeline_switch_used
             },
+            "lifeline_request_status": attempt.lifeline_request_status,
+            "pending_lifeline_type": attempt.pending_lifeline_type,
+            "pending_lifeline_switch_category": attempt.pending_lifeline_switch_category,
+            "timer_is_paused": attempt.timer_is_paused,
+            "options_visible": attempt.options_visible,
+            "showing_question": attempt.showing_question,
             "question": {
                 "id": question.id,
                 "text": question.text,
@@ -529,6 +535,11 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             attempt.score = current_points
             attempt.current_question_index += 1
             attempt.preselected_choice = None
+            
+            # Reset option visibility and hold next question until explicitly pushed by Host
+            attempt.showing_question = False
+            attempt.options_visible = False
+            attempt.timer_is_paused = False
             
             completed = attempt.current_question_index >= len(questions)
             if completed:
@@ -694,7 +705,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 default=Value(1),
                 output_field=IntegerField()
             )
-        ).order_by('completion_order', '-score', 'completed_at')
+        ).order_by('completion_order', '-score', 'completed_at')[:30]
         
         total_regular_questions = quiz.questions.filter(question_type=Question.QuestionType.REGULAR).count()
         
@@ -1306,6 +1317,19 @@ class QuizLiveStateView(APIView):
     
     def get(self, request, pk):
         quiz = get_object_or_404(Quiz, pk=pk)
+        
+        # Auto-populate batches if empty and stage is batch_selection or later FFF/Hotseat stages
+        if quiz.current_stage != Quiz.Stage.REGULAR and not quiz.batch_1_players and not quiz.batch_2_players and not quiz.batch_3_players:
+            attempts = QuizAttempt.objects.filter(quiz=quiz, completed_at__isnull=False).order_by('-score', 'completed_at')
+            student_ids = [att.student_id for att in attempts]
+            
+            top_30 = student_ids[:30]
+            quiz.batch_1_players = top_30[0:10]
+            quiz.batch_2_players = top_30[10:20]
+            quiz.batch_3_players = top_30[20:30]
+            quiz.top_30_selected = top_30
+            quiz.save(update_fields=['top_30_selected', 'batch_1_players', 'batch_2_players', 'batch_3_players'])
+
         user = request.user
         
         role = "spectator"
@@ -1397,6 +1421,18 @@ class QuizLiveStateView(APIView):
         total_questions = quiz.questions.filter(question_type=Question.QuestionType.REGULAR).count()
         overall_total_questions = quiz.questions.count()
                     
+        # Resolve batch player names
+        def resolve_players_list(id_list):
+            if not id_list:
+                return []
+            users = User.objects.filter(id__in=id_list)
+            user_map = {u.id: u.full_name for u in users}
+            return [{"id": pid, "name": user_map.get(pid, f"Player ID: {pid}")} for pid in id_list]
+
+        b1_resolved = resolve_players_list(quiz.batch_1_players)
+        b2_resolved = resolve_players_list(quiz.batch_2_players)
+        b3_resolved = resolve_players_list(quiz.batch_3_players)
+
         return Response({
             "quiz_id": quiz.id,
             "title": quiz.title,
@@ -1410,7 +1446,10 @@ class QuizLiveStateView(APIView):
             "fff_answered": fff_answered,
             "live_participants": live_participants,
             "total_questions": total_questions,
-            "overall_total_questions": overall_total_questions
+            "overall_total_questions": overall_total_questions,
+            "batch_1_players": b1_resolved,
+            "batch_2_players": b2_resolved,
+            "batch_3_players": b3_resolved
         })
 
 
@@ -1899,3 +1938,393 @@ class HotseatWalkAwayView(APIView):
             "walked_away": True,
             "final_points": attempt.score
         })
+
+
+class HotseatLifelineRequestView(APIView):
+    permission_classes = [IsStudentUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if request.user != hotseat_player:
+            return Response({"detail": "You are not the active hotseat contestant."}, status=403)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=request.user, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt already completed."}, status=400)
+            
+        lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
+        category = request.data.get('category', '')
+        
+        if not lifeline or lifeline not in ['5050', 'poll', 'switch']:
+            return Response({"detail": "Invalid lifeline provided."}, status=400)
+            
+        if lifeline == '5050' and attempt.lifeline_5050_used:
+            return Response({"detail": "50:50 lifeline already used."}, status=400)
+        elif lifeline == 'poll' and attempt.lifeline_poll_used:
+            return Response({"detail": "Audience Poll lifeline already used."}, status=400)
+        elif lifeline == 'switch' and attempt.lifeline_switch_used:
+            return Response({"detail": "Switch Question lifeline already used."}, status=400)
+            
+        attempt.pending_lifeline_type = lifeline
+        attempt.pending_lifeline_switch_category = category
+        attempt.lifeline_request_status = 'requested'
+        attempt.approved_lifeline_data = {}
+        attempt.save()
+        
+        return Response({
+            "detail": f"Request for {lifeline} lifeline submitted to host.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class HotseatLifelineAcknowledgeView(APIView):
+    permission_classes = [IsStudentUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if request.user != hotseat_player:
+            return Response({"detail": "You are not the active hotseat contestant."}, status=403)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=request.user, batch_number=batch_num)
+        
+        attempt.lifeline_request_status = 'none'
+        attempt.pending_lifeline_type = ''
+        attempt.pending_lifeline_switch_category = ''
+        attempt.save()
+        
+        return Response({
+            "detail": "Lifeline status acknowledged.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminApproveLifelineView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+            q_type = Question.QuestionType.HOTSEAT_1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+            q_type = Question.QuestionType.HOTSEAT_2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+            q_type = Question.QuestionType.HOTSEAT_3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not hotseat_player:
+            return Response({"detail": "No active hotseat contestant."}, status=404)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=hotseat_player, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt already completed."}, status=400)
+            
+        if attempt.lifeline_request_status != 'requested':
+            return Response({"detail": "No pending lifeline request to approve."}, status=400)
+            
+        lifeline = attempt.pending_lifeline_type
+        questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+        question = questions[attempt.current_question_index]
+        choices = list(question.choices.all())
+        
+        approved_data = {}
+        
+        if lifeline == '5050':
+            if attempt.lifeline_5050_used:
+                return Response({"detail": "50:50 lifeline already used."}, status=400)
+                
+            correct_choice = next(c for c in choices if c.is_correct)
+            incorrect_choices = [c for c in choices if not c.is_correct]
+            
+            import random
+            random.shuffle(incorrect_choices)
+            eliminated = incorrect_choices[:2]
+            
+            attempt.lifeline_5050_used = True
+            approved_data = {
+                "eliminated_choice_ids": [c.id for c in eliminated]
+            }
+            
+        elif lifeline == 'poll':
+            if attempt.lifeline_poll_used:
+                return Response({"detail": "Audience Poll lifeline already used."}, status=400)
+                
+            correct_choice = next(c for c in choices if c.is_correct)
+            
+            import random
+            correct_votes = random.randint(55, 75)
+            remaining_votes = 100 - correct_votes
+            
+            incorrect_choices = [c for c in choices if not c.is_correct]
+            random.shuffle(incorrect_choices)
+            
+            poll_results = {}
+            poll_results[correct_choice.id] = correct_votes
+            
+            if len(incorrect_choices) >= 3:
+                v1 = random.randint(5, max(5, remaining_votes - 10))
+                remaining_votes -= v1
+                v2 = random.randint(2, max(2, remaining_votes - 5))
+                remaining_votes -= v2
+                v3 = remaining_votes
+                
+                poll_results[incorrect_choices[0].id] = v1
+                poll_results[incorrect_choices[1].id] = v2
+                poll_results[incorrect_choices[2].id] = v3
+            else:
+                for idx, inc in enumerate(incorrect_choices):
+                    if idx == len(incorrect_choices) - 1:
+                        poll_results[inc.id] = remaining_votes
+                    else:
+                        v = random.randint(5, max(5, remaining_votes // 2))
+                        poll_results[inc.id] = v
+                        remaining_votes -= v
+                        
+            attempt.lifeline_poll_used = True
+            approved_data = {
+                "votes": poll_results
+            }
+            
+        elif lifeline == 'switch':
+            if attempt.lifeline_switch_used:
+                return Response({"detail": "Switch Question lifeline already used."}, status=400)
+                
+            category = attempt.pending_lifeline_switch_category or 'General'
+            
+            replacement = Question.objects.filter(
+                quiz=quiz,
+                question_type=q_type,
+                category__iexact=category
+            ).exclude(id=question.id).first()
+            
+            if not replacement:
+                replacement = Question.objects.filter(
+                    quiz=quiz,
+                    question_type=q_type
+                ).exclude(id=question.id).first()
+                
+            if not replacement:
+                return Response({"detail": "No replacement questions available."}, status=404)
+                
+            original_order = question.order
+            question.order = replacement.order
+            replacement.order = original_order
+            
+            question.save(update_fields=['order'])
+            replacement.save(update_fields=['order'])
+            
+            attempt.lifeline_switch_used = True
+            approved_data = {}
+            
+        attempt.lifeline_request_status = 'approved'
+        attempt.approved_lifeline_data = approved_data
+        attempt.save()
+        
+        return Response({
+            "detail": f"{lifeline} lifeline approved successfully.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminRejectLifelineView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not hotseat_player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=hotseat_player, batch_number=batch_num)
+        
+        if attempt.lifeline_request_status != 'requested':
+            return Response({"detail": "No pending lifeline request to reject."}, status=400)
+            
+        attempt.lifeline_request_status = 'rejected'
+        attempt.save()
+        
+        return Response({
+            "detail": "Lifeline request rejected successfully.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminShowOptionsView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.options_visible = True
+        attempt.timer_is_paused = False
+        attempt.save()
+        
+        return Response({
+            "detail": "Choices successfully revealed.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminPauseTimerView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.timer_is_paused = True
+        attempt.save()
+        
+        return Response({
+            "detail": "Timer paused.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminResumeTimerView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.timer_is_paused = False
+        attempt.save()
+        
+        return Response({
+            "detail": "Timer resumed.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminNextQuestionReadyView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            player = quiz.hotseat_player_1
+            batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            player = quiz.hotseat_player_2
+            batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            player = quiz.hotseat_player_3
+            batch = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not player:
+            return Response({"detail": "No active hotseat player promoted."}, status=400)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
+        attempt.showing_question = True
+        attempt.options_visible = False
+        attempt.timer_is_paused = False
+        attempt.save()
+        
+        return Response({
+            "detail": "Next question pushed to contestant.",
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+

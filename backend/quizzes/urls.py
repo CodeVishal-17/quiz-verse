@@ -22,6 +22,14 @@ from quizzes.views import (
     HotseatWalkAwayView,
     HotseatPreselectView,
     MyQuizRegistrationView,
+    HotseatLifelineRequestView,
+    HotseatLifelineAcknowledgeView,
+    AdminApproveLifelineView,
+    AdminRejectLifelineView,
+    AdminShowOptionsView,
+    AdminPauseTimerView,
+    AdminResumeTimerView,
+    AdminNextQuestionReadyView,
 )
 
 router = DefaultRouter()
@@ -54,6 +62,14 @@ urlpatterns = [
     path('<int:pk>/hotseat-lifeline/', HotseatLifelineView.as_view(), name='quiz-hotseat-lifeline'),
     path('<int:pk>/hotseat-walk-away/', HotseatWalkAwayView.as_view(), name='quiz-hotseat-walk-away'),
     path('<int:pk>/hotseat-preselect/', HotseatPreselectView.as_view(), name='quiz-hotseat-preselect'),
+    path('<int:pk>/hotseat-lifeline-request/', HotseatLifelineRequestView.as_view(), name='quiz-hotseat-lifeline-request'),
+    path('<int:pk>/hotseat-lifeline-acknowledge/', HotseatLifelineAcknowledgeView.as_view(), name='quiz-hotseat-lifeline-acknowledge'),
+    path('admin/<int:pk>/approve_lifeline/', AdminApproveLifelineView.as_view(), name='quiz-admin-approve-lifeline'),
+    path('admin/<int:pk>/reject_lifeline/', AdminRejectLifelineView.as_view(), name='quiz-admin-reject-lifeline'),
+    path('admin/<int:pk>/show_options/', AdminShowOptionsView.as_view(), name='quiz-admin-show-options'),
+    path('admin/<int:pk>/pause_timer/', AdminPauseTimerView.as_view(), name='quiz-admin-pause-timer'),
+    path('admin/<int:pk>/resume_timer/', AdminResumeTimerView.as_view(), name='quiz-admin-resume-timer'),
+    path('admin/<int:pk>/next_question/', AdminNextQuestionReadyView.as_view(), name='quiz-admin-next-question'),
 
     # Router URLs last to avoid overriding specific student routes
     path('', include(router.urls)),
