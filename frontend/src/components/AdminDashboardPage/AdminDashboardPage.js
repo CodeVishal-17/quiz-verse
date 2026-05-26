@@ -1764,16 +1764,42 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
                     {/* Hotseat Stages */}
                     {kbcQuizDetail?.current_stage.startsWith('hotseat_') && (
-                      <div className="kbc-panel context-panel" style={{ padding: '3rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <div className="kbc-crest" style={{ fontSize: '3rem', color: '#ffd700', marginBottom: '1rem', textShadow: '0 0 15px rgba(255, 215, 0, 0.4)' }}>
+                      <div className="kbc-panel context-panel" style={{ padding: '3rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(10, 15, 30, 0.98)' }}>
+                        <div className="kbc-crest" style={{ fontSize: '3.5rem', color: '#ffd700', marginBottom: '1rem' }}>
                           🎙️
                         </div>
-                        <h3 className="golden-glow" style={{ fontSize: '1.8rem', fontWeight: 'bold', margin: '0 0 0.5rem 0' }}>
+                        <h3 className="golden-glow" style={{ fontSize: '2.2rem', fontWeight: '900', margin: '0 0 0.8rem 0', letterSpacing: '0.05em' }}>
                           HOTSEAT SHOWTIME (ARENA MODE)
                         </h3>
-                        <p className="panel-subtitle" style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.7)', maxWidth: '550px', lineHeight: '1.6', margin: '0 auto 2rem auto' }}>
-                          The Hotseat round for <strong style={{ color: '#ffd700' }}>Batch {kbcQuizDetail.current_stage.slice(-1)}</strong> is now active! Command the show, view contestant preselected choices, read KBC-style trivia, and lock choices using the premium, immersive full-screen Host Arena interface.
+                        <p className="panel-subtitle" style={{ fontSize: '1.15rem', color: 'rgba(255,255,255,0.95)', maxWidth: '650px', lineHeight: '1.7', margin: '0 auto 2rem auto', fontWeight: '500' }}>
+                          The Hotseat round for <strong style={{ color: '#ffd700', fontSize: '1.25rem' }}>Batch {kbcQuizDetail.current_stage.slice(-1)}</strong> is now active! Command the show, view contestant preselected choices, read KBC-style trivia, and lock choices using the premium, immersive full-screen Host Arena interface.
                         </p>
+
+                        <div style={{ 
+                          background: 'rgba(212, 175, 55, 0.05)', 
+                          border: '1px solid rgba(212, 175, 55, 0.3)', 
+                          borderRadius: '12px', 
+                          padding: '1.75rem 2.25rem', 
+                          marginBottom: '2.5rem', 
+                          maxWidth: '650px', 
+                          width: '100%',
+                          textAlign: 'left'
+                        }}>
+                          <h4 style={{ color: '#ffd700', fontSize: '1.25rem', fontWeight: '900', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', letterSpacing: '0.05em' }}>
+                            🎬 HOST OPERATIONAL STEPS
+                          </h4>
+                          <ul style={{ color: '#fff', fontSize: '1.05rem', lineHeight: '1.7', paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <li>
+                              <strong style={{ color: '#ffd700' }}>Step 1: Choose a Contestant</strong> — Use the <strong>"Active Hotseat Player"</strong> panel on the left to select and promote a student directly to the hotseat.
+                            </li>
+                            <li>
+                              <strong style={{ color: '#ffd700' }}>Step 2: Enter Host Arena</strong> — Click the big yellow button below to open the **Broadcast Arena Controller** in a new full-screen tab.
+                            </li>
+                            <li>
+                              <strong style={{ color: '#ffd700' }}>Step 3: Run the Show</strong> — From the Arena tab, read KBC trivia, view student choice selection in real-time, approve lifelines, lock answers, and advance KBC ladder levels!
+                            </li>
+                          </ul>
+                        </div>
 
                         {kbcLiveState?.hotseat_attempt ? (
                           <div className="glass-card" style={{

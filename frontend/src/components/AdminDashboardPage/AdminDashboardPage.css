@@ -305,7 +305,6 @@
 .admin-metric-card {
   border: 1px solid var(--admin-border);
   background: var(--admin-surface);
-  backdrop-filter: blur(24px);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: var(--admin-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -378,7 +377,6 @@
   background: 
     linear-gradient(135deg, rgba(var(--admin-cyan-rgb), 0.1), transparent 50%),
     var(--admin-surface);
-  backdrop-filter: blur(24px);
   border-radius: 12px;
   padding: 2.5rem;
   position: relative;
@@ -736,12 +734,11 @@
 
 /* Glassmorphic Panels */
 .kbc-panel {
-  background: rgba(25, 24, 24, 0.65);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--admin-border);
+  background: rgba(12, 17, 34, 0.98) !important; /* Solid KBC deep navy to fix browser hover blur rendering bugs */
+  border: 1px solid rgba(212, 175, 55, 0.35) !important; /* Elegant gold-accented border */
   border-radius: 12px;
   padding: 1.75rem;
-  box-shadow: var(--admin-shadow);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65), inset 0 0 15px rgba(212, 175, 55, 0.05) !important;
   position: relative;
   overflow: hidden;
 }

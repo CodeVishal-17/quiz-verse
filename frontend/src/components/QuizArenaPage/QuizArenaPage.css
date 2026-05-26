@@ -223,7 +223,7 @@
   background: linear-gradient(135deg, #fff8c8 0%, var(--dash-gold-bright) 45%, var(--dash-gold) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 2px 10px rgba(212, 175, 55, 0.25);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .subtitle-text {
