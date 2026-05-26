@@ -23,7 +23,8 @@ def seed_kbc_test_event():
                 email="admin@quizverse.edu",
                 password="adminpassword123",
                 full_name="System Administrator",
-                role="admin"
+                role="admin",
+                college_id="ADMIN001"
             )
 
     # 1. Recreate/Reset the KBC Live Test Quiz
