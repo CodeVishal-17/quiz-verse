@@ -1,6 +1,7 @@
-import { getAuthSession } from './auth';
+import { getAuthSession, clearAuthSession } from './auth';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+let rawApiUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
 
 async function request(path, options, tokenParam) {
   const headers = {
