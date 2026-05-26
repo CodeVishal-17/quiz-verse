@@ -23,6 +23,9 @@ import {
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './AdminDashboardPage.css';
 
+let rawApiUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
+
 const SYMBOLS = {
   triangle: '\u25B3',
   circle: '\u25CB',
@@ -654,7 +657,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
   const handleDownloadTemplate = async (type = 'prelim') => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/download_template/?type=${type}`, {
+      const res = await fetch(`${API_BASE_URL}/quizzes/admin/download_template/?type=${type}`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${session?.token}` },
       });
@@ -679,7 +682,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       const formDataObj = new FormData();
       formDataObj.append('file', file);
       
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${quizId}/upload_questions/`, {
+      const res = await fetch(`${API_BASE_URL}/quizzes/admin/${quizId}/upload_questions/`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.token}` },
         body: formDataObj
@@ -697,7 +700,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
   const handleManageQuestionsClick = async (quiz) => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${quiz.id}/questions/`, {
+      const res = await fetch(`${API_BASE_URL}/quizzes/admin/${quiz.id}/questions/`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${session?.token}` },
       });
@@ -718,7 +721,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       "warning",
       async () => {
         try {
-          const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/delete_question/`, {
+          const res = await fetch(`${API_BASE_URL}/quizzes/admin/delete_question/`, {
             method: 'POST',
             headers: { 
               'Authorization': `Bearer ${session?.token}`,
@@ -746,7 +749,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   const handleAddQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/${selectedManageQuiz.id}/add_question/`, {
+      const res = await fetch(`${API_BASE_URL}/quizzes/admin/${selectedManageQuiz.id}/add_question/`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${session?.token}`,
@@ -799,7 +802,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   const handleEditQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api'}/quizzes/admin/edit_question/`, {
+      const res = await fetch(`${API_BASE_URL}/quizzes/admin/edit_question/`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${session?.token}`,
