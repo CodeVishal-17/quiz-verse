@@ -431,18 +431,33 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     }
   };
 
+  // Poll live KBC controller data safely with recursive setTimeout to prevent network congestion
   useEffect(() => {
+    let active = true;
+    let timeoutId = null;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        await fetchKbcControllerData(selectedKbcQuizId);
+      } catch (err) {
+        console.error("Overlapping admin poll error:", err);
+      } finally {
+        if (active) {
+          // Schedule next poll ONLY after current request completes
+          timeoutId = setTimeout(poll, 3000);
+        }
+      }
+    };
+
     if (activeTab === 'Live KBC Controller' && selectedKbcQuizId) {
-      // Fetch immediately
-      fetchKbcControllerData(selectedKbcQuizId);
-
-      // Poll every 3 seconds
-      const interval = setInterval(() => {
-        fetchKbcControllerData(selectedKbcQuizId);
-      }, 3000);
-
-      return () => clearInterval(interval);
+      poll();
     }
+
+    return () => {
+      active = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [activeTab, selectedKbcQuizId]);
 
   useEffect(() => {

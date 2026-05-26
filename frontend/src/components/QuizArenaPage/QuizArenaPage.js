@@ -270,13 +270,33 @@ function QuizArenaInner({ showBeautifulPopup }) {
     }
   }, [location.search, session]);
 
-  // Poll live state once verified
+  // Poll live state once verified with safety against overlapping requests
   useEffect(() => {
+    let active = true;
+    let timeoutId = null;
+
+    const poll = async () => {
+      if (!active) return;
+      try {
+        await fetchLiveState();
+      } catch (err) {
+        console.error("Overlapping arena poll error:", err);
+      } finally {
+        if (active) {
+          // Schedule next poll ONLY after current request completes
+          timeoutId = setTimeout(poll, 2000);
+        }
+      }
+    };
+
     if (isVerified) {
-      fetchLiveState();
-      pollingRef.current = setInterval(fetchLiveState, 2000);
+      poll();
     }
-    return () => clearInterval(pollingRef.current);
+
+    return () => {
+      active = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isVerified]);
 
   // Sync state transitions & FFF timers
