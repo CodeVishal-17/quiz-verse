@@ -148,6 +148,8 @@ class Question(models.Model):
         HOTSEAT_1 = "hotseat_1", "Hotseat (Batch 1)"
         HOTSEAT_2 = "hotseat_2", "Hotseat (Batch 2)"
         HOTSEAT_3 = "hotseat_3", "Hotseat (Batch 3)"
+        SWITCH = "switch", "Switch Question"
+
 
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="questions")
     text = models.TextField()
@@ -269,6 +271,7 @@ class HotseatAttempt(models.Model):
     pending_lifeline_switch_category = models.CharField(max_length=100, default="", blank=True)
     lifeline_request_status = models.CharField(max_length=20, default="none") # 'none', 'requested', 'approved', 'rejected'
     approved_lifeline_data = models.JSONField(default=dict, blank=True)
+    current_question_switched = models.BooleanField(default=False)
     
     # Cinematic timer & question visibility pacing
     timer_is_paused = models.BooleanField(default=False)
@@ -286,3 +289,38 @@ class HotseatAttempt(models.Model):
 
     def __str__(self):
         return f"Hotseat Batch {self.batch_number} - {self.student.full_name} ({self.score} pts)"
+
+
+class SwitchCategory(models.Model):
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="switch_categories")
+    name = models.CharField(max_length=100)
+    image = models.ImageField(upload_to="switch_categories/", blank=True, null=True)
+    question = models.OneToOneField(
+        'Question',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="switch_category_link"
+    )
+
+    def __str__(self):
+        return f"{self.quiz.title} - Switch Category: {self.name}"
+
+
+class SystemPreferences(models.Model):
+    prelim_mcq_timer = models.IntegerField(default=90)
+    fff_speed_timer = models.IntegerField(default=20)
+    hotseat_q1_q5_limit = models.IntegerField(default=60)
+    hotseat_q6_q10_limit = models.IntegerField(default=120)
+    auto_approve_registrations = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "System Preferences"
+        verbose_name_plural = "System Preferences"
+
+    @classmethod
+    def get_solo(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj
+
+

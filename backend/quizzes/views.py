@@ -14,8 +14,8 @@ from django.db import transaction
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 
-from quizzes.models import Quiz, QuizRegistration, Question, Choice, QuizAttempt, StudentAnswer, FFFAnswer, HotseatAttempt
-from quizzes.serializers import QuizRegistrationSerializer, QuizSerializer, FFFAnswerSerializer, HotseatAttemptSerializer, QuestionSerializer, EnrolledStudentSerializer
+from quizzes.models import Quiz, QuizRegistration, Question, Choice, QuizAttempt, StudentAnswer, FFFAnswer, HotseatAttempt, SwitchCategory, SystemPreferences
+from quizzes.serializers import QuizRegistrationSerializer, QuizSerializer, FFFAnswerSerializer, HotseatAttemptSerializer, QuestionSerializer, EnrolledStudentSerializer, SystemPreferencesSerializer
 from quizzes.services import process_mock_payment, register_student_for_quiz
 from django.utils import timezone
 import random
@@ -337,6 +337,119 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             })
         return Response(data)
 
+    @action(detail=True, methods=['get'])
+    def switch_categories(self, request, pk=None):
+        quiz = self.get_object()
+        categories = quiz.switch_categories.all().select_related('question')
+        
+        data = []
+        for c in categories:
+            choices_data = []
+            q_data = None
+            if c.question:
+                for choice in c.question.choices.all():
+                    choices_data.append({
+                        "id": choice.id,
+                        "text": choice.text,
+                        "is_correct": choice.is_correct
+                    })
+                q_data = {
+                    "id": c.question.id,
+                    "text": c.question.text,
+                    "choices": choices_data
+                }
+                
+            img_url = c.image.url if c.image else None
+            if img_url and request:
+                img_url = request.build_absolute_uri(img_url)
+                
+            data.append({
+                "id": c.id,
+                "name": c.name,
+                "image": img_url,
+                "question": q_data
+            })
+        return Response(data)
+
+    @action(detail=True, methods=['post'], parser_classes=[parsers.MultiPartParser, parsers.FormParser])
+    def save_switch_category(self, request, pk=None):
+        quiz = self.get_object()
+        
+        category_id = request.data.get('category_id')
+        if not category_id and quiz.switch_categories.count() >= 6:
+            return Response({"detail": "You can configure a maximum of 6 switch categories."}, status=400)
+            
+        name = request.data.get('name', '').strip()
+        if not name:
+            return Response({"detail": "Category name is required."}, status=400)
+            
+        question_text = request.data.get('question_text', '').strip()
+        if not question_text:
+            return Response({"detail": "Question text is required."}, status=400)
+            
+        choice_a = request.data.get('choice_a', '').strip()
+        choice_b = request.data.get('choice_b', '').strip()
+        choice_c = request.data.get('choice_c', '').strip()
+        choice_d = request.data.get('choice_d', '').strip()
+        correct_choice = request.data.get('correct_choice', '').strip().upper()
+        
+        if not all([choice_a, choice_b, choice_c, choice_d]) or correct_choice not in ['A', 'B', 'C', 'D']:
+            return Response({"detail": "All 4 options and a correct selection (A/B/C/D) are required."}, status=400)
+            
+        with transaction.atomic():
+            if category_id:
+                category = get_object_or_404(SwitchCategory, quiz=quiz, id=category_id)
+                category.name = name
+                if 'image' in request.FILES:
+                    category.image = request.FILES['image']
+                category.save()
+            else:
+                image_file = request.FILES.get('image')
+                category = SwitchCategory.objects.create(
+                    quiz=quiz,
+                    name=name,
+                    image=image_file
+                )
+                
+            if category.question:
+                question = category.question
+                question.text = question_text
+                question.category = name
+                question.save()
+                question.choices.all().delete()
+            else:
+                question = Question.objects.create(
+                    quiz=quiz,
+                    text=question_text,
+                    question_type=Question.QuestionType.SWITCH,
+                    category=name,
+                    order=0
+                )
+                category.question = question
+                category.save()
+                
+            Choice.objects.create(question=question, text=choice_a, is_correct=(correct_choice == 'A'))
+            Choice.objects.create(question=question, text=choice_b, is_correct=(correct_choice == 'B'))
+            Choice.objects.create(question=question, text=choice_c, is_correct=(correct_choice == 'C'))
+            Choice.objects.create(question=question, text=choice_d, is_correct=(correct_choice == 'D'))
+            
+        return Response({"detail": "Switch category and question saved successfully."})
+
+    @action(detail=True, methods=['post'])
+    def delete_switch_category(self, request, pk=None):
+        quiz = self.get_object()
+        category_id = request.data.get('category_id')
+        if not category_id:
+            return Response({"detail": "Category ID is required."}, status=400)
+            
+        category = get_object_or_404(SwitchCategory, quiz=quiz, id=category_id)
+        with transaction.atomic():
+            if category.question:
+                category.question.delete()
+            category.delete()
+            
+        return Response({"detail": "Switch category deleted successfully."})
+
     @action(detail=True, methods=['post'])
     def add_question(self, request, pk=None):
         quiz = self.get_object()
@@ -535,6 +648,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             attempt.score = current_points
             attempt.current_question_index += 1
             attempt.preselected_choice = None
+            attempt.current_question_switched = False
             
             # Reset option visibility and hold next question until explicitly pushed by Host
             attempt.showing_question = False
@@ -806,13 +920,16 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         quiz = self.get_object()
         email = request.data.get('email', '').strip().lower()
         full_name = request.data.get('full_name', '').strip()
-        college_id = request.data.get('college_id', '').strip()
+        college_id = request.data.get('roll_number', '').strip() or request.data.get('college_id', '').strip()
         payment_status = request.data.get('payment_status', 'paid').strip().lower()
 
         if not email or not full_name or not college_id:
-            return Response({"detail": "Email, full name, and college ID are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Email, full name, and roll number are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if payment_status not in [QuizRegistration.PaymentStatus.PAID, QuizRegistration.PaymentStatus.PENDING]:
+        prefs = SystemPreferences.get_solo()
+        if prefs.auto_approve_registrations:
+            payment_status = QuizRegistration.PaymentStatus.PAID
+        elif payment_status not in [QuizRegistration.PaymentStatus.PAID, QuizRegistration.PaymentStatus.PENDING]:
             payment_status = QuizRegistration.PaymentStatus.PAID
 
         try:
@@ -822,6 +939,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                     defaults={
                         'full_name': full_name,
                         'college_id': college_id,
+                        'roll_number': college_id,
                         'role': User.Role.STUDENT
                     }
                 )
@@ -829,8 +947,14 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                     user.set_password("KBC123")
                     user.save()
                 else:
+                    changed = False
                     if not user.college_id:
                         user.college_id = college_id
+                        changed = True
+                    if not user.roll_number:
+                        user.roll_number = college_id
+                        changed = True
+                    if changed:
                         user.save()
 
                 from users.models import School, Program, Branch, StudentProfile
@@ -911,7 +1035,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 file_data = file.read().decode('utf-8')
                 csv_data = csv.reader(StringIO(file_data))
                 rows = list(csv_data)
-
+ 
             if len(rows) <= 1:
                 return Response({"detail": "No student records found in the uploaded file."}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -919,6 +1043,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             skipped_count = 0
             
             from users.models import School, Program, Branch, StudentProfile
+            prefs = SystemPreferences.get_solo()
             
             with transaction.atomic():
                 for idx, row in enumerate(rows[1:], start=1):
@@ -934,14 +1059,17 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                         skipped_count += 1
                         continue
                         
-                    if pay_status not in [QuizRegistration.PaymentStatus.PAID, QuizRegistration.PaymentStatus.PENDING]:
+                    if prefs.auto_approve_registrations:
                         pay_status = QuizRegistration.PaymentStatus.PAID
-
+                    elif pay_status not in [QuizRegistration.PaymentStatus.PAID, QuizRegistration.PaymentStatus.PENDING]:
+                        pay_status = QuizRegistration.PaymentStatus.PAID
+ 
                     user, created = User.objects.get_or_create(
                         email=email,
                         defaults={
                             'full_name': full_name,
                             'college_id': college_id,
+                            'roll_number': college_id,
                             'role': User.Role.STUDENT
                         }
                     )
@@ -949,8 +1077,14 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                         user.set_password("KBC123")
                         user.save()
                     else:
+                        changed = False
                         if not user.college_id:
                             user.college_id = college_id
+                            changed = True
+                        if not user.roll_number:
+                            user.roll_number = college_id
+                            changed = True
+                        if changed:
                             user.save()
                             
                     if not hasattr(user, 'student_profile'):
@@ -965,7 +1099,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                         branch = Branch.objects.filter(program=program).first()
                         if not branch:
                             branch = Branch.objects.create(program=program, branch_name="Default Branch", branch_code="DEFAULT_BR")
-
+ 
                         StudentProfile.objects.create(
                             user=user,
                             school=school,
@@ -985,7 +1119,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                         sequence_number__isnull=False
                     ).aggregate(Max('sequence_number'))['sequence_number__max']
                     next_seq = 1 if max_seq is None else max_seq + 1
-
+ 
                     QuizRegistration.objects.create(
                         student=user,
                         quiz=quiz,
@@ -1001,14 +1135,14 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+ 
     @action(detail=False, methods=['get'])
     def download_enrollment_template(self, request):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Student Enrollment Template"
         
-        headers = ['Full Name', 'Email', 'College ID', 'Payment Status (paid/pending)']
+        headers = ['Full Name', 'Email', 'Roll Number', 'Payment Status (paid/pending)']
         ws.append(headers)
         
         header_font = Font(bold=True)
@@ -1020,7 +1154,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         sample_row = [
             "John Doe",
             "johndoe@quizverse.edu",
-            "C1029384",
+            "ROLL001",
             "paid"
         ]
         ws.append(sample_row)
@@ -1035,7 +1169,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
                 except:
                     pass
             ws.column_dimensions[column].width = min(max_length + 2, 40)
-
+ 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = 'attachment; filename="student_enrollment_template.xlsx"'
         wb.save(response)
@@ -1439,6 +1573,8 @@ class QuizLiveStateView(APIView):
         b2_resolved = resolve_players_list(quiz.batch_2_players)
         b3_resolved = resolve_players_list(quiz.batch_3_players)
 
+        prefs = SystemPreferences.get_solo()
+
         return Response({
             "quiz_id": quiz.id,
             "title": quiz.title,
@@ -1455,7 +1591,12 @@ class QuizLiveStateView(APIView):
             "overall_total_questions": overall_total_questions,
             "batch_1_players": b1_resolved,
             "batch_2_players": b2_resolved,
-            "batch_3_players": b3_resolved
+            "batch_3_players": b3_resolved,
+            "prelim_mcq_timer": prefs.prelim_mcq_timer,
+            "fff_speed_timer": prefs.fff_speed_timer,
+            "hotseat_q1_q5_limit": prefs.hotseat_q1_q5_limit,
+            "hotseat_q6_q10_limit": prefs.hotseat_q6_q10_limit,
+            "auto_approve_registrations": prefs.auto_approve_registrations,
         })
 
 
@@ -1701,6 +1842,7 @@ class HotseatSubmitView(APIView):
             current_points = SCORE_LADDER[attempt.current_question_index]
             attempt.score = current_points
             attempt.current_question_index += 1
+            attempt.current_question_switched = False
             
             if attempt.current_question_index >= len(questions):
                 attempt.status = HotseatAttempt.Status.COMPLETED
@@ -1783,6 +1925,12 @@ class HotseatLifelineView(APIView):
         attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=request.user, batch_number=batch_num)
         if attempt.status != HotseatAttempt.Status.PLAYING:
             return Response({"detail": "Hotseat attempt already completed."}, status=400)
+            
+        if not attempt.options_visible:
+            return Response({"detail": "Lifelines can only be requested after choices are shown by the host."}, status=400)
+            
+        if attempt.current_question_index >= 10:
+            return Response({"detail": "Lifelines are no longer available after the 10th question."}, status=400)
             
         lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
         if not lifeline or lifeline not in ['5050', 'poll', 'switch']:
@@ -1972,6 +2120,12 @@ class HotseatLifelineRequestView(APIView):
         if attempt.status != HotseatAttempt.Status.PLAYING:
             return Response({"detail": "Hotseat attempt already completed."}, status=400)
             
+        if not attempt.options_visible:
+            return Response({"detail": "Lifelines can only be requested after choices are shown by the host."}, status=400)
+            
+        if attempt.current_question_index >= 10:
+            return Response({"detail": "Lifelines are no longer available after the 10th question."}, status=400)
+            
         lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
         category = request.data.get('category', '')
         
@@ -2130,32 +2284,6 @@ class AdminApproveLifelineView(APIView):
         elif lifeline == 'switch':
             if attempt.lifeline_switch_used:
                 return Response({"detail": "Switch Question lifeline already used."}, status=400)
-                
-            category = attempt.pending_lifeline_switch_category or 'General'
-            
-            replacement = Question.objects.filter(
-                quiz=quiz,
-                question_type=q_type,
-                category__iexact=category
-            ).exclude(id=question.id).first()
-            
-            if not replacement:
-                replacement = Question.objects.filter(
-                    quiz=quiz,
-                    question_type=q_type
-                ).exclude(id=question.id).first()
-                
-            if not replacement:
-                return Response({"detail": "No replacement questions available."}, status=404)
-                
-            original_order = question.order
-            question.order = replacement.order
-            replacement.order = original_order
-            
-            question.save(update_fields=['order'])
-            replacement.save(update_fields=['order'])
-            
-            attempt.lifeline_switch_used = True
             approved_data = {}
             
         attempt.lifeline_request_status = 'approved'
@@ -2397,5 +2525,172 @@ class AdminCompleteIntroView(APIView):
             "detail": "KBC Intro playback completed.",
             "attempt": HotseatAttemptSerializer(attempt).data
         })
+
+
+class StudentSwitchCategoryListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        categories = quiz.switch_categories.all().select_related('question')
+        categories = [c for c in categories if c.question]
+        
+        data = []
+        for c in categories:
+            img_url = c.image.url if c.image else None
+            if img_url and request:
+                img_url = request.build_absolute_uri(img_url)
+            data.append({
+                "id": c.id,
+                "name": c.name,
+                "image": img_url
+            })
+        return Response(data)
+
+
+class HotseatSelectSwitchCategoryView(APIView):
+    permission_classes = [IsStudentUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if request.user != hotseat_player:
+            return Response({"detail": "You are not the active hotseat contestant."}, status=403)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=request.user, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt already completed."}, status=400)
+            
+        if attempt.lifeline_request_status != 'approved' or attempt.pending_lifeline_type != 'switch':
+            return Response({"detail": "Switch Question lifeline has not been approved by the host."}, status=400)
+            
+        category_id = request.data.get('category_id')
+        if not category_id:
+            return Response({"detail": "Category ID is required."}, status=400)
+            
+        switch_cat = get_object_or_404(SwitchCategory, quiz=quiz, id=category_id)
+        if not switch_cat.question:
+            return Response({"detail": "No question configured for this category."}, status=400)
+            
+        with transaction.atomic():
+            attempt.pending_lifeline_switch_category = f"{switch_cat.id}:{switch_cat.name}"
+            attempt.save()
+            
+        return Response({
+            "selected": True,
+            "category_name": switch_cat.name,
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class AdminConfirmSwitchLifelineView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        stage = quiz.current_stage
+        
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            hotseat_player = quiz.hotseat_player_1
+            batch_num = 1
+            q_type = Question.QuestionType.HOTSEAT_1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            hotseat_player = quiz.hotseat_player_2
+            batch_num = 2
+            q_type = Question.QuestionType.HOTSEAT_2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            hotseat_player = quiz.hotseat_player_3
+            batch_num = 3
+            q_type = Question.QuestionType.HOTSEAT_3
+        else:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        if not hotseat_player:
+            return Response({"detail": "No active hotseat contestant."}, status=404)
+            
+        attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=hotseat_player, batch_number=batch_num)
+        if attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "Hotseat attempt already completed."}, status=400)
+            
+        if attempt.lifeline_request_status != 'approved' or attempt.pending_lifeline_type != 'switch':
+            return Response({"detail": "Switch Question lifeline is not active."}, status=400)
+            
+        selected_cat_str = attempt.pending_lifeline_switch_category
+        if not selected_cat_str or ":" not in selected_cat_str:
+            return Response({"detail": "Contestant has not selected a switch category yet."}, status=400)
+            
+        try:
+            category_id = int(selected_cat_str.split(":", 1)[0])
+        except Exception:
+            return Response({"detail": "Invalid selected category format."}, status=400)
+            
+        switch_cat = get_object_or_404(SwitchCategory, quiz=quiz, id=category_id)
+        replacement_question = switch_cat.question
+        if not replacement_question:
+            return Response({"detail": "No question configured for this category."}, status=400)
+            
+        questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+        original_question = questions[attempt.current_question_index]
+        
+        with transaction.atomic():
+            original_order = original_question.order
+            
+            replacement_question.question_type = q_type
+            replacement_question.order = original_order
+            replacement_question.save()
+            
+            original_question.question_type = Question.QuestionType.SWITCH
+            original_question.order = 999
+            original_question.save()
+            
+            switch_cat.question = None
+            switch_cat.save()
+            
+            attempt.lifeline_switch_used = True
+            attempt.current_question_switched = True
+            attempt.lifeline_request_status = 'none'
+            attempt.pending_lifeline_type = ''
+            attempt.pending_lifeline_switch_category = ''
+            attempt.showing_question = True
+            attempt.options_visible = False
+            attempt.timer_is_paused = False
+            attempt.save()
+            
+        return Response({
+            "switched": True,
+            "attempt": HotseatAttemptSerializer(attempt).data
+        })
+
+
+class SystemPreferencesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        prefs = SystemPreferences.get_solo()
+        serializer = SystemPreferencesSerializer(prefs)
+        return Response(serializer.data)
+
+    def post(self, request):
+        prefs = SystemPreferences.get_solo()
+        serializer = SystemPreferencesSerializer(prefs, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 

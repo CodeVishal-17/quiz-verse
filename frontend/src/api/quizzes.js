@@ -191,6 +191,12 @@ export function rejectHotseatLifeline(id, token) {
   }, token);
 }
 
+export function confirmHotseatSwitchCategory(id, token) {
+  return request(`/quizzes/admin/${id}/confirm_switch_lifeline/`, {
+    method: 'POST',
+  }, token);
+}
+
 export function hotseatWalkAway(id, token) {
   return request(`/quizzes/${id}/hotseat-walk-away/`, { method: 'POST' }, token);
 }
@@ -303,3 +309,45 @@ export function hostTriggerIntro(quizId, token) {
 export function hostCompleteIntro(quizId, token) {
   return request(`/quizzes/admin/${quizId}/complete_intro/`, { method: 'POST' }, token);
 }
+
+export function getSwitchCategories(id, token) {
+  return request(`/quizzes/${id}/switch-categories/`, { method: 'GET' }, token);
+}
+
+export function selectHotseatSwitchCategory(id, categoryId, token) {
+  return request(`/quizzes/${id}/hotseat-select-switch-category/`, {
+    method: 'POST',
+    body: JSON.stringify({ category_id: categoryId }),
+  }, token);
+}
+
+export function getAdminSwitchCategories(quizId, token) {
+  return request(`/quizzes/admin/${quizId}/switch_categories/`, { method: 'GET' }, token);
+}
+
+export function saveAdminSwitchCategory(quizId, formData, token) {
+  return request(`/quizzes/admin/${quizId}/save_switch_category/`, {
+    method: 'POST',
+    body: formData,
+  }, token);
+}
+
+export function deleteAdminSwitchCategory(quizId, categoryId, token) {
+  return request(`/quizzes/admin/${quizId}/delete_switch_category/`, {
+    method: 'POST',
+    body: JSON.stringify({ category_id: categoryId }),
+  }, token);
+}
+
+export function getSystemPreferences(token) {
+  return request('/quizzes/admin/preferences/', { method: 'GET' }, token);
+}
+
+export function saveSystemPreferences(payload, token) {
+  return request('/quizzes/admin/preferences/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }, token);
+}
+
+

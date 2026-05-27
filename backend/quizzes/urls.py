@@ -32,6 +32,10 @@ from quizzes.views import (
     AdminNextQuestionReadyView,
     AdminTriggerIntroView,
     AdminCompleteIntroView,
+    StudentSwitchCategoryListView,
+    HotseatSelectSwitchCategoryView,
+    AdminConfirmSwitchLifelineView,
+    SystemPreferencesView,
 )
 
 router = DefaultRouter()
@@ -41,6 +45,7 @@ router.register(r'teams', StudentTeamViewSet, basename='student-teams')
 urlpatterns = [
     # Admin routes
     path('admin-stats/', AdminStatsView.as_view(), name='admin-stats'),
+    path('admin/preferences/', SystemPreferencesView.as_view(), name='quiz-admin-preferences'),
     
     # Student routes
     path('published/', PublishedQuizListView.as_view(), name='published-quizzes'),
@@ -66,6 +71,8 @@ urlpatterns = [
     path('<int:pk>/hotseat-preselect/', HotseatPreselectView.as_view(), name='quiz-hotseat-preselect'),
     path('<int:pk>/hotseat-lifeline-request/', HotseatLifelineRequestView.as_view(), name='quiz-hotseat-lifeline-request'),
     path('<int:pk>/hotseat-lifeline-acknowledge/', HotseatLifelineAcknowledgeView.as_view(), name='quiz-hotseat-lifeline-acknowledge'),
+    path('<int:pk>/switch-categories/', StudentSwitchCategoryListView.as_view(), name='quiz-switch-categories'),
+    path('<int:pk>/hotseat-select-switch-category/', HotseatSelectSwitchCategoryView.as_view(), name='quiz-hotseat-select-switch-category'),
     path('admin/<int:pk>/approve_lifeline/', AdminApproveLifelineView.as_view(), name='quiz-admin-approve-lifeline'),
     path('admin/<int:pk>/reject_lifeline/', AdminRejectLifelineView.as_view(), name='quiz-admin-reject-lifeline'),
     path('admin/<int:pk>/show_options/', AdminShowOptionsView.as_view(), name='quiz-admin-show-options'),
@@ -74,6 +81,7 @@ urlpatterns = [
     path('admin/<int:pk>/next_question/', AdminNextQuestionReadyView.as_view(), name='quiz-admin-next-question'),
     path('admin/<int:pk>/trigger_intro/', AdminTriggerIntroView.as_view(), name='quiz-admin-trigger-intro'),
     path('admin/<int:pk>/complete_intro/', AdminCompleteIntroView.as_view(), name='quiz-admin-complete-intro'),
+    path('admin/<int:pk>/confirm_switch_lifeline/', AdminConfirmSwitchLifelineView.as_view(), name='quiz-admin-confirm-switch-lifeline'),
 
     # Router URLs last to avoid overriding specific student routes
     path('', include(router.urls)),

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from users.serializers import UserPublicSerializer
 
-from quizzes.models import Quiz, QuizRegistration
+from quizzes.models import Quiz, QuizRegistration, Question, SwitchCategory, SystemPreferences
 
 
 class QuizSerializer(serializers.ModelSerializer):
@@ -10,6 +10,14 @@ class QuizSerializer(serializers.ModelSerializer):
     hotseat_player_1_name = serializers.CharField(source='hotseat_player_1.full_name', read_only=True)
     hotseat_player_2_name = serializers.CharField(source='hotseat_player_2.full_name', read_only=True)
     hotseat_player_3_name = serializers.CharField(source='hotseat_player_3.full_name', read_only=True)
+    
+    total_questions_count = serializers.SerializerMethodField()
+    prelim_questions_count = serializers.SerializerMethodField()
+    fff_questions_count = serializers.SerializerMethodField()
+    hotseat_1_questions_count = serializers.SerializerMethodField()
+    hotseat_2_questions_count = serializers.SerializerMethodField()
+    hotseat_3_questions_count = serializers.SerializerMethodField()
+    switch_categories_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Quiz
@@ -26,7 +34,10 @@ class QuizSerializer(serializers.ModelSerializer):
             'hotseat_player_1_name', 'hotseat_player_2_name', 'hotseat_player_3_name',
             'hotseat_score_1', 'hotseat_score_2', 'hotseat_score_3',
             'hotseat_status_1', 'hotseat_status_2', 'hotseat_status_3',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at',
+            'total_questions_count', 'prelim_questions_count', 'fff_questions_count',
+            'hotseat_1_questions_count', 'hotseat_2_questions_count', 'hotseat_3_questions_count',
+            'switch_categories_count'
         ]
         read_only_fields = ['created_at', 'updated_at', 'created_by']
         
@@ -35,6 +46,27 @@ class QuizSerializer(serializers.ModelSerializer):
             return None
         count = getattr(obj, 'registered_count', 0)
         return max(0, obj.max_participants - count)
+
+    def get_total_questions_count(self, obj):
+        return obj.questions.count()
+
+    def get_prelim_questions_count(self, obj):
+        return obj.questions.filter(question_type='prelim').count()
+
+    def get_fff_questions_count(self, obj):
+        return obj.questions.filter(question_type='fff').count()
+
+    def get_hotseat_1_questions_count(self, obj):
+        return obj.questions.filter(question_type='hotseat_1').count()
+
+    def get_hotseat_2_questions_count(self, obj):
+        return obj.questions.filter(question_type='hotseat_2').count()
+
+    def get_hotseat_3_questions_count(self, obj):
+        return obj.questions.filter(question_type='hotseat_3').count()
+
+    def get_switch_categories_count(self, obj):
+        return obj.switch_categories.count()
 
 
 class QuizRegistrationSerializer(serializers.ModelSerializer):
@@ -126,7 +158,7 @@ class HotseatAttemptSerializer(serializers.ModelSerializer):
             'current_question_index', 'score', 'status', 'lifeline_5050_used', 
             'lifeline_poll_used', 'lifeline_switch_used', 'started_at', 'completed_at',
             'pending_lifeline_type', 'pending_lifeline_switch_category', 
-            'lifeline_request_status', 'approved_lifeline_data',
+            'lifeline_request_status', 'approved_lifeline_data', 'current_question_switched',
             'timer_is_paused', 'options_visible', 'showing_question', 'show_intro'
         ]
         read_only_fields = ['started_at', 'completed_at']
@@ -134,3 +166,27 @@ class HotseatAttemptSerializer(serializers.ModelSerializer):
     def get_player_id(self, obj):
         reg = QuizRegistration.objects.filter(student=obj.student, quiz=obj.quiz).first()
         return reg.player_id if reg else ""
+
+
+from quizzes.models import SwitchCategory
+
+class SwitchCategorySerializer(serializers.ModelSerializer):
+    question_text = serializers.CharField(source='question.text', read_only=True)
+    
+    class Meta:
+        model = SwitchCategory
+        fields = ['id', 'quiz', 'name', 'image', 'question', 'question_text']
+
+
+class SystemPreferencesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemPreferences
+        fields = [
+            'prelim_mcq_timer',
+            'fff_speed_timer',
+            'hotseat_q1_q5_limit',
+            'hotseat_q6_q10_limit',
+            'auto_approve_registrations',
+        ]
+
+

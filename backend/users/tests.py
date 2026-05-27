@@ -1,79 +1,92 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework import status
+from django.contrib.auth import get_user_model
+from .models import School, Program, Branch, StudentProfile
+import io
+import openpyxl
 
-from .models import School, Program, Branch, User, StudentProfile
+User = get_user_model()
 
-
-class StudentAuthApiTests(TestCase):
+class UserAuthAndAdminTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.school = School.objects.create(school_name="School of Engineering", school_code="SOET")
         self.program = Program.objects.create(school=self.school, program_name="Computer Science", program_code="CSE_PROG")
         self.branch = Branch.objects.create(program=self.program, branch_name="Computer Science Engineering", branch_code="CSE")
 
-    def test_student_can_register_and_login(self):
-        payload = {
-            "full_name": "Aria Sharma",
-            "college_id": "QV123",
-            "email": "aria@example.edu",
-            "school": self.school.id,
-            "program": self.program.id,
-            "branch": self.branch.id,
-            "year": "3",
-            "password": "strongpass123",
-            "confirm_password": "strongpass123",
-        }
-
-        register_response = self.client.post("/api/users/register/", payload, format="json")
-
-        self.assertEqual(register_response.status_code, 201)
-        self.assertEqual(User.objects.count(), 1)
-        self.assertNotEqual(User.objects.get().password, payload["password"])
-        self.assertIn("token", register_response.data)
-
-        login_response = self.client.post(
-            "/api/users/login/",
-            {"identifier": payload["college_id"], "password": payload["password"]},
-            format="json",
-        )
-
-        self.assertEqual(login_response.status_code, 200)
-        self.assertEqual(login_response.data["student"]["email"], payload["email"])
-        self.assertIn("token", login_response.data)
-
-    def test_duplicate_college_id_is_rejected(self):
-        user = User(
-            full_name="Aria Sharma",
-            college_id="QV123",
+        # Create standard student
+        self.student = User.objects.create_user(
             email="aria@example.edu",
+            password="strongpass123",
+            full_name="Aria Sharma",
+            college_id="ROLL001",
+            roll_number="ROLL001",
+            role=User.Role.STUDENT
         )
-        user.set_password("strongpass123")
-        user.save()
-        
         StudentProfile.objects.create(
-            user=user,
+            user=self.student,
             school=self.school,
             program=self.program,
             branch=self.branch,
             year="3"
         )
 
-        response = self.client.post(
-            "/api/users/register/",
-            {
-                "full_name": "Kabir Singh",
-                "college_id": "QV123",
-                "email": "kabir@example.edu",
-                "school": self.school.id,
-                "program": self.program.id,
-                "branch": self.branch.id,
-                "year": "2",
-                "password": "strongpass123",
-                "confirm_password": "strongpass123",
-            },
-            format="json",
+        # Create admin user
+        self.admin = User.objects.create_superuser(
+            email="admin@example.edu",
+            password="adminpassword123",
+            full_name="Admin User",
+            college_id="ADMIN001",
+            roll_number="ADMIN001"
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("college_id", response.data)
+    def test_student_login_success(self):
+        # Student login using roll_number / email
+        payload = {
+            "identifier": "ROLL001",
+            "password": "strongpass123"
+        }
+        response = self.client.post("/api/users/login/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("token", response.data)
+        self.assertEqual(response.data["student"]["email"], self.student.email)
 
+    def test_student_login_failure(self):
+        payload = {
+            "identifier": "ROLL001",
+            "password": "wrongpassword"
+        }
+        response = self.client.post("/api/users/login/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_download_template_with_dropdowns(self):
+        url = "/api/users/admin/students/download-template/"
+        response = self.client.get(url, HTTP_AUTHORIZATION=f"Bearer {self.admin.session_token}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        # Load sheet to verify content
+        wb = openpyxl.load_workbook(io.BytesIO(response.content))
+        self.assertIn("Students", wb.sheetnames)
+        self.assertIn("AcademicSectors", wb.sheetnames)
+
+        ws = wb["Students"]
+        headers = [cell.value for cell in ws[1]]
+        self.assertEqual(headers, ["Full Name", "Roll Number", "Email", "School", "Program", "Branch", "Year"])
+
+        # Check hidden data lists
+        ws_lists = wb["AcademicSectors"]
+        list_headers = [cell.value for cell in ws_lists[1]]
+        self.assertEqual(list_headers, ["Schools", "Programs", "Branches"])
+
+        # Verify our created school, program, and branch are in the hidden sheet
+        schools_col = [cell.value for cell in ws_lists["A"]]
+        self.assertIn("SOET", schools_col)
+        self.assertIn("School of Engineering", schools_col)
+
+        programs_col = [cell.value for cell in ws_lists["B"]]
+        self.assertIn("CSE_PROG", programs_col)
+
+        branches_col = [cell.value for cell in ws_lists["C"]]
+        self.assertIn("CSE", branches_col)

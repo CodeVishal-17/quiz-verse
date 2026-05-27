@@ -39,6 +39,9 @@ def register_student_for_quiz(student, quiz):
         if quiz.allowed_years and profile.year not in quiz.allowed_years:
             raise ValidationError("Your academic year is not eligible for this quiz.")
             
+    from .models import SystemPreferences
+    prefs = SystemPreferences.get_solo()
+
     with transaction.atomic():
         # Lock the quiz rows to prevent race conditions during sequence generation
         # by counting current paid registrations and safely assigning the next.
@@ -55,7 +58,7 @@ def register_student_for_quiz(student, quiz):
         registration = QuizRegistration.objects.create(
             student=student,
             quiz=quiz_lock,
-            payment_status=QuizRegistration.PaymentStatus.PENDING,
+            payment_status=QuizRegistration.PaymentStatus.PAID if prefs.auto_approve_registrations else QuizRegistration.PaymentStatus.PENDING,
             sequence_number=next_seq,
             player_id=f"PLAYER {next_seq:03d}"
         )

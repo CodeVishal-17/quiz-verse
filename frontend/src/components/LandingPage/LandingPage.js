@@ -132,10 +132,6 @@ function LandingPage() {
                 <span className="btn-icon">{SYMBOLS.triangle}</span>
                 ENTER SYSTEM
               </Link>
-              <Link to="/register" className="btn-action btn-register">
-                <span className="btn-icon">{SYMBOLS.circle}</span>
-                REGISTER
-              </Link>
             </div>
 
             <div className="landing-mantra" aria-label="Compete. Qualify. Conquer.">

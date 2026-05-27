@@ -86,6 +86,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name = models.CharField(max_length=120)
     email = models.EmailField(unique=True)
     college_id = models.CharField(max_length=40, unique=True)
+    roll_number = models.CharField(max_length=40, unique=True, blank=True, null=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
     session_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     is_active = models.BooleanField(default=True)
@@ -97,7 +98,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["full_name", "college_id"]
+    REQUIRED_FIELDS = ["full_name", "college_id", "roll_number"]
 
     class Meta:
         ordering = ["-created_at"]

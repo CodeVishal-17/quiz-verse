@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { loginStudent, saveAuthSession } from '../../api/auth';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './LoginPage.css';
@@ -106,9 +106,7 @@ function LoginPage() {
           </div>
         </form>
 
-        <div className="login-footer">
-          <Link to="/register" className="link-secondary">NEW PLAYER? REGISTER HERE</Link>
-        </div>
+
       </div>
     </main>
   );

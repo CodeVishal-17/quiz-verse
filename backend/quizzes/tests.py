@@ -100,12 +100,12 @@ class QuizEnrollmentTests(TestCase):
         ws = wb.active
         self.assertEqual(ws.title, "Student Enrollment Template")
         headers = [cell.value for cell in ws[1]]
-        self.assertEqual(headers, ['Full Name', 'Email', 'College ID', 'Payment Status (paid/pending)'])
+        self.assertEqual(headers, ['Full Name', 'Email', 'Roll Number', 'Payment Status (paid/pending)'])
 
     def test_bulk_enroll_students_csv(self):
         url = f"/api/quizzes/admin/{self.quiz.id}/bulk_enroll_students/"
         csv_content = (
-            "Full Name,Email,College ID,Payment Status (paid/pending)\n"
+            "Full Name,Email,Roll Number,Payment Status (paid/pending)\n"
             "Bulk Student 1,bulk1@quizverse.edu,ST_BULK1,paid\n"
             "Bulk Student 2,bulk2@quizverse.edu,ST_BULK2,pending\n"
         )
@@ -122,6 +122,8 @@ class QuizEnrollmentTests(TestCase):
         u2 = User.objects.get(email="bulk2@quizverse.edu")
         self.assertEqual(u1.college_id, "ST_BULK1")
         self.assertEqual(u2.college_id, "ST_BULK2")
+        self.assertEqual(u1.roll_number, "ST_BULK1")
+        self.assertEqual(u2.roll_number, "ST_BULK2")
         
         reg1 = QuizRegistration.objects.get(student=u1, quiz=self.quiz)
         reg2 = QuizRegistration.objects.get(student=u2, quiz=self.quiz)

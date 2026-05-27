@@ -433,7 +433,7 @@
 }
 
 .tilt-card:hover {
-  transform: translateY(-5px) rotateX(1deg) rotateY(-1deg);
+  transform: translateY(-5px);
   border-color: rgba(var(--dash-pink-rgb), 0.28);
 }
 

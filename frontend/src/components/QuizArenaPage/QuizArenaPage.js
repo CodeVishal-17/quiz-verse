@@ -24,7 +24,10 @@ import {
   hostResumeTimer,
   hostNextQuestion,
   hostTriggerIntro,
-  hostCompleteIntro
+  hostCompleteIntro,
+  getSwitchCategories,
+  selectHotseatSwitchCategory,
+  confirmHotseatSwitchCategory
 } from '../../api/quizzes';
 import { getAuthSession } from '../../api/auth';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
@@ -176,6 +179,11 @@ function QuizArenaInner({ showBeautifulPopup }) {
   const [revealedChoicesCount, setRevealedChoicesCount] = useState(0);
   const [approvingLifeline, setApprovingLifeline] = useState(false);
   const [rejectingLifeline, setRejectingLifeline] = useState(false);
+  const [showCategorySelector, setShowCategorySelector] = useState(false);
+  const [switchCategoriesList, setSwitchCategoriesList] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [submittingCategoryChoice, setSubmittingCategoryChoice] = useState(false);
 
   const handleHotseatTimeout = async () => {
     if (submittingHotseat) return;
@@ -326,7 +334,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
     const isFffStage = liveState.current_stage.startsWith('fff_batch_');
     if (isFffStage && liveState.is_in_active_batch && !liveState.fff_answered && !fffAnswered) {
       if (!fffTimerRef.current) {
-        setFffTimeLeft(20);
+        const timerLimit = liveState?.fff_speed_timer || 20;
+        setFffTimeLeft(timerLimit);
         fffStartTimeRef.current = performance.now();
         fffTimerRef.current = setInterval(() => {
           setFffTimeLeft((prev) => {
@@ -434,10 +443,18 @@ function QuizArenaInner({ showBeautifulPopup }) {
 
   // Handle stateful lifeline request status updates
   useEffect(() => {
-    if (!liveState || liveState.student_role !== 'hotseat_player') return;
-    
+    if (!liveState) return;
+
     const attempt = liveState.hotseat_attempt;
-    if (!attempt) return;
+    const isHotseat = liveState.student_role === 'hotseat_player';
+
+    if (!isHotseat || !attempt || attempt.pending_lifeline_type !== 'switch' || attempt.lifeline_request_status !== 'approved') {
+      if (showCategorySelector) {
+        setShowCategorySelector(false);
+      }
+    }
+
+    if (!isHotseat || !attempt) return;
     
     const requestStatus = attempt.lifeline_request_status;
     const pendingType = attempt.pending_lifeline_type;
@@ -449,6 +466,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
           if (pendingType === '5050' && approvedData.eliminated_choice_ids) {
             setEliminatedChoiceIds(approvedData.eliminated_choice_ids);
             showBeautifulPopup("50:50 Lifeline Approved!", "Two incorrect choices have been eliminated.", "success");
+            await acknowledgeHotseatLifeline(id, session?.token);
           } else if (pendingType === 'poll' && approvedData.votes) {
             const finalVotes = approvedData.votes;
             setPollVotes(finalVotes);
@@ -482,15 +500,23 @@ function QuizArenaInner({ showBeautifulPopup }) {
               });
               setPollAnimVotes(fakeVotes);
             }, 200);
+            await acknowledgeHotseatLifeline(id, session?.token);
           } else if (pendingType === 'switch') {
-            await loadHotseatQuestion();
-            setSelectedHotseatChoice(null);
-            setEliminatedChoiceIds([]);
-            setPollVotes(null);
-            showBeautifulPopup("Switch Question Approved!", "Your active card has been replaced with a new category card.", "success");
+            if (!showCategorySelector && switchCategoriesList.length === 0 && !loadingCategories) {
+              try {
+                setLoadingCategories(true);
+                const list = await getSwitchCategories(id, session?.token);
+                setSwitchCategoriesList(list);
+                setSelectedCategoryId(null);
+                setShowCategorySelector(true);
+              } catch (err) {
+                console.error("Failed to load switch categories:", err);
+                showBeautifulPopup("Error", "Failed to load custom categories for the Switch lifeline.", "error");
+              } finally {
+                setLoadingCategories(false);
+              }
+            }
           }
-          
-          await acknowledgeHotseatLifeline(id, session?.token);
         } catch (err) {
           console.error("Failed to apply approved lifeline: ", err);
         }
@@ -620,7 +646,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
       setPrelimTotal(data.question.total_questions);
       setPrelimIndex(data.question.current_index);
       setPrelimSelected(null);
-      setPrelimTimeLeft(90);
+      const timerLimit = liveState?.prelim_mcq_timer || 90;
+      setPrelimTimeLeft(timerLimit);
       startPrelimTimer();
     } catch (err) {
       setError('Failed to load next preliminary question.');
@@ -642,14 +669,16 @@ function QuizArenaInner({ showBeautifulPopup }) {
   };
 
   const handlePrelimTimeUp = () => {
-    submitPrelimAnswer(null, 90);
+    const timerLimit = liveState?.prelim_mcq_timer || 90;
+    submitPrelimAnswer(null, timerLimit);
   };
 
   const submitPrelimAnswer = async (choiceId, timeTaken = null) => {
     try {
       setPrelimSubmitting(true);
       clearInterval(prelimTimerRef.current);
-      const actualTime = timeTaken !== null ? timeTaken : 90 - prelimTimeLeft;
+      const timerLimit = liveState?.prelim_mcq_timer || 90;
+      const actualTime = timeTaken !== null ? timeTaken : timerLimit - prelimTimeLeft;
       const res = await submitQuizAnswer(id, choiceId, actualTime, session?.token);
       
       // Bypass the trivia screen entirely in round 1 (preliminary round).
@@ -703,7 +732,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
       
       const endTime = performance.now();
       const elapsed = ((endTime - fffStartTimeRef.current) / 1000).toFixed(3);
-      const seconds = Math.min(20.0, parseFloat(elapsed));
+      const timerLimit = liveState?.fff_speed_timer || 20;
+      const seconds = Math.min(parseFloat(timerLimit), parseFloat(elapsed));
 
       const firstChoiceId = fffSelectedSequence[0] || null;
       setFffSelectedChoice(firstChoiceId);
@@ -736,16 +766,16 @@ function QuizArenaInner({ showBeautifulPopup }) {
           setEliminatedChoiceIds([]);
           setPollVotes(null);
 
-          // Configure timer limit for Hotseat Q1-15:
-          // Q1 - Q5 (indices 0 - 4): 60 seconds
-          // Q6 - Q10 (indices 5 - 9): 120 seconds
+          // Configure timer limit for Hotseat Q1-15 dynamically from preferences:
+          // Q1 - Q5 (indices 0 - 4)
+          // Q6 - Q10 (indices 5 - 9)
           // Q11 - Q15 (indices 10 - 14): Infinite (null)
           const qIndex = data.current_index;
           let limit = null;
           if (qIndex < 5) {
-            limit = 60;
+            limit = liveState?.hotseat_q1_q5_limit !== undefined ? liveState.hotseat_q1_q5_limit : 60;
           } else if (qIndex < 10) {
-            limit = 120;
+            limit = liveState?.hotseat_q6_q10_limit !== undefined ? liveState.hotseat_q6_q10_limit : 120;
           }
           setHotseatTimeLeft(limit);
         } else {
@@ -896,6 +926,22 @@ function QuizArenaInner({ showBeautifulPopup }) {
     }
   };
 
+  const [confirmingSwitch, setConfirmingSwitch] = useState(false);
+
+  const handleHostConfirmSwitch = async () => {
+    if (confirmingSwitch) return;
+    try {
+      setConfirmingSwitch(true);
+      await confirmHotseatSwitchCategory(id, session?.token);
+      showBeautifulPopup("Question Switched", "Question has been successfully switched!", "success");
+      await loadHostHotseatQuestion();
+    } catch (err) {
+      showBeautifulPopup("Error", err.message || "Failed to switch question.", "error");
+    } finally {
+      setConfirmingSwitch(false);
+    }
+  };
+
   const handleHotseatChoiceClick = async (choiceId) => {
     if (liveState?.student_role !== 'hotseat_player' || submittingHotseat) return;
     if (eliminatedChoiceIds.includes(choiceId)) return; // 50:50 locked out
@@ -937,6 +983,14 @@ function QuizArenaInner({ showBeautifulPopup }) {
   // KBC Lifelines Activations
   const handleUse5050 = async () => {
     if (liveState?.hotseat_attempt?.lifeline_5050_used) return;
+    if (!liveState?.hotseat_attempt?.options_visible) {
+      showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
+      return;
+    }
+    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+      return;
+    }
     try {
       await requestHotseatLifeline(id, '5050', '', session?.token);
       showBeautifulPopup("Lifeline Requested", "Your request for 50:50 Lifeline has been sent to the host.", "info");
@@ -947,6 +1001,14 @@ function QuizArenaInner({ showBeautifulPopup }) {
 
   const handleUseAudiencePoll = async () => {
     if (liveState?.hotseat_attempt?.lifeline_poll_used) return;
+    if (!liveState?.hotseat_attempt?.options_visible) {
+      showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
+      return;
+    }
+    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+      return;
+    }
     try {
       await requestHotseatLifeline(id, 'poll', '', session?.token);
       showBeautifulPopup("Lifeline Requested", "Your request for Audience Poll has been sent to the host.", "info");
@@ -955,18 +1017,42 @@ function QuizArenaInner({ showBeautifulPopup }) {
     }
   };
 
-  const handleUseSwitchQuestion = () => {
+  const handleUseSwitchQuestion = async () => {
     if (liveState?.hotseat_attempt?.lifeline_switch_used) return;
-    setShowSwitchModal(true);
-  };
-
-  const submitSwitchQuestionCategory = async (category) => {
+    if (!liveState?.hotseat_attempt?.options_visible) {
+      showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
+      return;
+    }
+    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+      return;
+    }
     try {
-      setShowSwitchModal(false);
-      await requestHotseatLifeline(id, 'switch', category, session?.token);
-      showBeautifulPopup("Lifeline Requested", `Your request for Switch Question (${category}) has been sent to the host.`, "info");
+      await requestHotseatLifeline(id, 'switch', '', session?.token);
+      showBeautifulPopup("Lifeline Requested", "Your request for Switch Question has been sent to the host.", "info");
     } catch (err) {
       showBeautifulPopup("Request Failed", err.message || "Failed to request Switch Question", "error");
+    }
+  };
+
+  const handleConfirmSwitchCategory = async () => {
+    if (!selectedCategoryId) {
+      showBeautifulPopup("Selection Required", "Please click on a category card first.", "warning");
+      return;
+    }
+    
+    try {
+      setSubmittingCategoryChoice(true);
+      await selectHotseatSwitchCategory(id, selectedCategoryId, session?.token);
+      
+      setSelectedCategoryId(null);
+      showBeautifulPopup("Domain Chosen!", "Transmitted selection to host. Awaiting host to trigger the question switch!", "success");
+      
+      await fetchLiveState();
+    } catch (err) {
+      showBeautifulPopup("Choice Failed", err.message || "Failed to select switch category.", "error");
+    } finally {
+      setSubmittingCategoryChoice(false);
     }
   };
 
@@ -1795,6 +1881,70 @@ function QuizArenaInner({ showBeautifulPopup }) {
               {/* Display Screen */}
               <div className="active-question-section">
                 
+                {/* Switch Category Selection & Switch Trigger Card for Host */}
+                {hostHotseatData?.pending_lifeline_type === 'switch' && hostHotseatData?.lifeline_request_status === 'approved' && (
+                  <div className="lifeline-request-alert glass-card glow-pink blinking-border" style={{
+                    padding: '1.5rem',
+                    borderRadius: '10px',
+                    background: 'rgba(219, 39, 119, 0.05)',
+                    border: '2px dashed #db2777',
+                    marginBottom: '1.25rem',
+                    textAlign: 'center',
+                    boxShadow: '0 0 20px rgba(219, 39, 119, 0.2)'
+                  }}>
+                    <h3 style={{ margin: '0 0 0.5rem 0', color: '#db2777', fontSize: '1.25rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', fontWeight: '900' }}>
+                      🔄 SWITCH LIFELINE CONTROL
+                    </h3>
+                    
+                    {(() => {
+                      const selectedCatStr = hostHotseatData.pending_lifeline_switch_category;
+                      const hasChosen = selectedCatStr && selectedCatStr.includes(':');
+                      const chosenName = hasChosen ? selectedCatStr.split(':', 2)[1] : '';
+
+                      if (!hasChosen) {
+                        return (
+                          <div>
+                            <p style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', color: '#fff' }}>
+                              Contestant <strong style={{ color: '#db2777' }}>{activeContestantName}</strong> is currently reviewing domains...
+                            </p>
+                            <div className="loading-spinner-hourglass" style={{ fontSize: '2rem', animation: 'spin 2s linear infinite', color: '#db2777' }}>⏳</div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div>
+                          <p style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#fff', lineHeight: '1.5' }}>
+                            Contestant selected domain: <strong style={{ color: 'var(--dash-gold-bright)', textShadow: '0 0 10px rgba(212,175,55,0.4)', textTransform: 'uppercase' }}>{chosenName}</strong>
+                          </p>
+                          <button 
+                            onClick={handleHostConfirmSwitch} 
+                            disabled={confirmingSwitch}
+                            style={{
+                              background: 'linear-gradient(135deg, #ffd700 0%, #d4af37 100%)',
+                              color: '#000',
+                              fontWeight: '900',
+                              padding: '0.65rem 2.5rem',
+                              borderRadius: '6px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 4px 15px rgba(212, 175, 55, 0.4)',
+                              letterSpacing: '0.05em',
+                              fontSize: '0.95rem',
+                              textTransform: 'uppercase',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(212, 175, 55, 0.6)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(212, 175, 55, 0.4)'; }}
+                          >
+                            {confirmingSwitch ? 'SWITCHING QUESTION...' : '⚡ TRIGGER QUESTION SWITCH'}
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Lifeline Request Notification Card */}
                 {hostHotseatData?.lifeline_request_status === 'requested' && (
                   <div className="lifeline-request-alert glass-card glow-gold blinking-border animate-pulse" style={{
@@ -2184,33 +2334,104 @@ function QuizArenaInner({ showBeautifulPopup }) {
               {/* KBC Lifeline Buttons */}
               <div className="lifelines-row">
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
                   onClick={handleUse5050}
-                  disabled={liveState?.hotseat_attempt?.lifeline_5050_used}
+                  disabled={liveState?.hotseat_attempt?.lifeline_5050_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use 50:50"}
+                  style={{ position: 'relative' }}
                 >
-                  <div className="lifeline-ring">50:50</div>
+                  <div className="lifeline-ring">
+                    <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '2px' }}>
+                      <defs>
+                        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#fff8c8" />
+                          <stop offset="50%" stopColor="#ffd700" />
+                          <stop offset="100%" stopColor="#b8860b" />
+                        </linearGradient>
+                      </defs>
+                      <circle cx="38" cy="22" r="14" fill="none" stroke="url(#goldGrad)" strokeWidth="2.5" />
+                      <circle cx="62" cy="22" r="14" fill="none" stroke="url(#goldGrad)" strokeWidth="2.5" strokeDasharray="3,2" />
+                      <text x="50%" y="48" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="900">50:50</text>
+                    </svg>
+                  </div>
+                  {liveState?.hotseat_attempt?.lifeline_5050_used && (
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                      <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                      <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
 
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
                   onClick={handleUseAudiencePoll}
-                  disabled={liveState?.hotseat_attempt?.lifeline_poll_used}
+                  disabled={liveState?.hotseat_attempt?.lifeline_poll_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Audience Poll"}
+                  style={{ position: 'relative' }}
                 >
-                  <div className="lifeline-ring">POLL</div>
+                  <div className="lifeline-ring">
+                    <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '4px' }}>
+                      <defs>
+                        <linearGradient id="blueGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                          <stop offset="0%" stopColor="#0052d4" />
+                          <stop offset="100%" stopColor="#21d3ee" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="25" y="24" width="10" height="14" rx="1.5" fill="url(#blueGrad)" />
+                      <rect x="45" y="14" width="10" height="24" rx="1.5" fill="url(#blueGrad)" />
+                      <rect x="65" y="6" width="10" height="32" rx="1.5" fill="url(#blueGrad)" />
+                      <text x="50%" y="49" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="900">POLL</text>
+                    </svg>
+                  </div>
+                  {liveState?.hotseat_attempt?.lifeline_poll_used && (
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                      <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                      <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
 
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
                   onClick={handleUseSwitchQuestion}
-                  disabled={liveState?.hotseat_attempt?.lifeline_switch_used}
+                  disabled={liveState?.hotseat_attempt?.lifeline_switch_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Switch Question"}
+                  style={{ position: 'relative' }}
                 >
-                  <div className="lifeline-ring">SWITCH</div>
+                  <div className="lifeline-ring">
+                    <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '2px' }}>
+                      <defs>
+                        <linearGradient id="switchGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#f472b6" />
+                          <stop offset="100%" stopColor="#db2777" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M 38 16 A 14 14 0 0 1 63 26" fill="none" stroke="url(#switchGrad)" strokeWidth="3" strokeLinecap="round" />
+                      <path d="M 62 36 A 14 14 0 0 1 37 26" fill="none" stroke="url(#switchGrad)" strokeWidth="3" strokeLinecap="round" strokeDasharray="3,2" />
+                      <polygon points="63,20 70,28 56,28" fill="#f472b6" />
+                      <polygon points="37,32 30,24 44,24" fill="#db2777" />
+                      <text x="50%" y="49" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="9" fontWeight="900">SWITCH</text>
+                    </svg>
+                  </div>
+                  {liveState?.hotseat_attempt?.lifeline_switch_used && (
+                    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                      <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                      <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
               </div>
 
               {/* Question Screen */}
               <div className="active-question-section">
-                <span className="question-category-tag">CATEGORY: {hotseatQuestion.category}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                  <span className="question-category-tag" style={{ margin: 0 }}>CATEGORY: {hotseatQuestion.category}</span>
+                  {liveState?.hotseat_attempt?.current_question_switched && (
+                    <span className="switched-badge animate-pulse" style={{ fontSize: '0.75rem', background: 'rgba(212,175,55,0.15)', border: '1px solid var(--dash-gold)', color: 'var(--dash-gold-bright)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.3rem', textShadow: '0 0 5px rgba(255,215,0,0.5)' }}>
+                      🔄 SWITCHED QUESTION
+                    </span>
+                  )}
+                </div>
                 <article className="arena-question-card glass-card kbc-question-frame">
                   <h2>{hotseatQuestion.text}</h2>
                 </article>
@@ -2318,23 +2539,89 @@ function QuizArenaInner({ showBeautifulPopup }) {
           )}
 
           {/* Switch Question category picker Modal */}
-          {showSwitchModal && (
-            <div className="modal-overlay" onClick={() => setShowSwitchModal(false)}>
-              <div className="modal-content glass-card glow-pink" onClick={(e) => e.stopPropagation()}>
-                <h2 className="golden-glow">SELECT SWITCH QUESTION CATEGORY</h2>
-                <p>Choose your favorite domain category to generate a replacement card:</p>
-                <div className="category-picker-grid">
-                  {switchCategories.map((cat) => (
-                    <button 
-                      key={cat} 
-                      className="category-choice-btn"
-                      onClick={() => submitSwitchQuestionCategory(cat)}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <button className="btn-walkaway" onClick={() => setShowSwitchModal(false)} style={{marginTop: '1.5rem'}}>Cancel</button>
+          {showCategorySelector && (
+            <div className="modal-overlay" style={{ background: 'rgba(3, 2, 6, 0.95)', zIndex: 1000 }}>
+              <div className="modal-content glass-card glow-pink" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px', padding: '3rem' }}>
+                <span className="overview-kicker" style={{ color: '#f472b6', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }}>🔄 SWITCH QUESTION ACTIVATED</span>
+                <h2 className="golden-glow" style={{ margin: '0.5rem 0 1rem 0', fontSize: '2.2rem', fontWeight: '900' }}>SELECT YOUR PREFERRED DOMAIN</h2>
+                <p style={{ color: '#94a3b8', marginBottom: '2.5rem', fontSize: '1.05rem' }}>
+                  The host has approved your lifeline! Reveal the categories and select the domain you wish to swap this question with.
+                </p>
+                
+                {(() => {
+                  const selectedCategoryStr = liveState?.hotseat_attempt?.pending_lifeline_switch_category;
+                  const isCategorySelected = selectedCategoryStr && selectedCategoryStr.includes(':');
+                  const selectedCategoryName = isCategorySelected ? selectedCategoryStr.split(':', 2)[1] : '';
+
+                  if (isCategorySelected) {
+                    return (
+                      <div style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '4.5rem', marginBottom: '1.5rem', animation: 'spin 4s linear infinite', display: 'inline-block' }}>🔄</div>
+                        <h3 style={{ color: '#fff', fontSize: '1.6rem', margin: '0 0 1rem 0', fontWeight: '800' }}>
+                          Domain Chosen: <span style={{ color: 'var(--dash-gold-bright)', textShadow: '0 0 10px rgba(212,175,55,0.4)' }}>{selectedCategoryName}</span>
+                        </h3>
+                        <p style={{ color: '#94a3b8', fontSize: '1.15rem', maxWidth: '500px', margin: '0 auto', lineHeight: '1.5' }}>
+                          Your domain selection has been transmitted to the host console. Please wait while the host triggers the question swap.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return loadingCategories ? (
+                    <div style={{ padding: '3rem', textAlign: 'center' }}>
+                      <div className="loading-spinner-hourglass" style={{ fontSize: '3rem', marginBottom: '1.5rem', animation: 'spin 2s linear infinite' }}>⏳</div>
+                      <p style={{ color: '#94a3b8' }}>Loading Switch Categories...</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
+                        {switchCategoriesList.map((cat) => {
+                          const isSelected = selectedCategoryId === cat.id;
+                          return (
+                            <div 
+                              key={cat.id} 
+                              onClick={() => setSelectedCategoryId(cat.id)}
+                              style={{ 
+                                background: isSelected ? 'rgba(219,39,119,0.12)' : 'rgba(255,255,255,0.02)',
+                                border: isSelected ? '2px solid #db2777' : '1px solid rgba(255,255,255,0.06)',
+                                borderRadius: '12px',
+                                padding: '1rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                                boxShadow: isSelected ? '0 0 25px rgba(219,39,119,0.3)' : 'none'
+                              }}
+                              className="tilt-card"
+                            >
+                              <div style={{ width: '100%', height: '110px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden', marginBottom: '0.8rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                {cat.image ? (
+                                  <img src={cat.image} alt={cat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                  <div style={{ fontSize: '2rem', color: 'rgba(255,255,255,0.2)' }}>📚</div>
+                                )}
+                              </div>
+                              <span style={{ fontSize: '1.1rem', fontWeight: '800', color: isSelected ? '#db2777' : '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{cat.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center' }}>
+                        <button 
+                          className="btn-submit" 
+                          disabled={!selectedCategoryId || submittingCategoryChoice}
+                          onClick={handleConfirmSwitchCategory}
+                          style={{ width: 'auto', minWidth: '220px' }}
+                        >
+                          {submittingCategoryChoice ? 'SWITCHING QUESTION...' : '🔄 CONFIRM SWITCH'}
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -2362,14 +2649,83 @@ function QuizArenaInner({ showBeautifulPopup }) {
             
             {/* Lifelines Status Row */}
             <div className="lifelines-row">
-              <div className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''}`}>
-                <div className="lifeline-ring">50:50</div>
+              <div 
+                className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <div className="lifeline-ring">
+                  <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '2px' }}>
+                    <defs>
+                      <linearGradient id="goldGradSpec" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#fff8c8" />
+                        <stop offset="50%" stopColor="#ffd700" />
+                        <stop offset="100%" stopColor="#b8860b" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="38" cy="22" r="14" fill="none" stroke="url(#goldGradSpec)" strokeWidth="2.5" />
+                    <circle cx="62" cy="22" r="14" fill="none" stroke="url(#goldGradSpec)" strokeWidth="2.5" strokeDasharray="3,2" />
+                    <text x="50%" y="48" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="900">50:50</text>
+                  </svg>
+                </div>
+                {liveState?.hotseat_attempt?.lifeline_5050_used && (
+                  <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                    <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                )}
               </div>
-              <div className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''}`}>
-                <div className="lifeline-ring">POLL</div>
+
+              <div 
+                className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <div className="lifeline-ring">
+                  <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '4px' }}>
+                    <defs>
+                      <linearGradient id="blueGradSpec" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stopColor="#0052d4" />
+                        <stop offset="100%" stopColor="#21d3ee" />
+                      </linearGradient>
+                    </defs>
+                    <rect x="25" y="24" width="10" height="14" rx="1.5" fill="url(#blueGradSpec)" />
+                    <rect x="45" y="14" width="10" height="24" rx="1.5" fill="url(#blueGradSpec)" />
+                    <rect x="65" y="6" width="10" height="32" rx="1.5" fill="url(#blueGradSpec)" />
+                    <text x="50%" y="49" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="900">POLL</text>
+                  </svg>
+                </div>
+                {liveState?.hotseat_attempt?.lifeline_poll_used && (
+                  <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                    <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                )}
               </div>
-              <div className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''}`}>
-                <div className="lifeline-ring">SWITCH</div>
+
+              <div 
+                className={`btn-lifeline disabled ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <div className="lifeline-ring">
+                  <svg viewBox="0 0 100 60" style={{ width: '100%', height: '100%', padding: '2px' }}>
+                    <defs>
+                      <linearGradient id="switchGradSpec" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#f472b6" />
+                        <stop offset="100%" stopColor="#db2777" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M 38 16 A 14 14 0 0 1 63 26" fill="none" stroke="url(#switchGradSpec)" strokeWidth="3" strokeLinecap="round" />
+                    <path d="M 62 36 A 14 14 0 0 1 37 26" fill="none" stroke="url(#switchGradSpec)" strokeWidth="3" strokeLinecap="round" strokeDasharray="3,2" />
+                    <polygon points="63,20 70,28 56,28" fill="#f472b6" />
+                    <polygon points="37,32 30,24 44,24" fill="#db2777" />
+                    <text x="50%" y="49" dominantBaseline="middle" textAnchor="middle" fill="#fff" fontSize="9" fontWeight="900">SWITCH</text>
+                  </svg>
+                </div>
+                {liveState?.hotseat_attempt?.lifeline_switch_used && (
+                  <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
+                    <line x1="12" y1="8" x2="63" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                    <line x1="63" y1="8" x2="12" y2="42" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                  </svg>
+                )}
               </div>
             </div>
 

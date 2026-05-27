@@ -24,12 +24,6 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function registerStudent(payload) {
-  return request('/users/register/', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
 
 export function loginStudent(payload) {
   return request('/users/login/', {
@@ -92,6 +86,81 @@ export function getAuthSession() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     return null;
   }
+}
+
+export function getAdminStudents(token) {
+  return request('/users/admin/students/', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createAdminStudent(token, payload) {
+  return request('/users/admin/students/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteAdminStudent(token, studentId) {
+  return request(`/users/admin/students/${studentId}/`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function bulkUploadStudents(token, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const rawApiUrlLocal = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+  const baseUrl = rawApiUrlLocal.endsWith('/api') ? rawApiUrlLocal : `${rawApiUrlLocal.replace(/\/$/, '')}/api`;
+
+  const response = await fetch(`${baseUrl}/users/admin/students/bulk-upload/`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.detail || 'Bulk upload failed.');
+    error.data = data;
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+export async function downloadStudentTemplate(token) {
+  const rawApiUrlLocal = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+  const baseUrl = rawApiUrlLocal.endsWith('/api') ? rawApiUrlLocal : `${rawApiUrlLocal.replace(/\/$/, '')}/api`;
+
+  const response = await fetch(`${baseUrl}/users/admin/students/download-template/`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to download template.');
+  }
+  return response.blob();
+}
+
+export function updateAdminStudent(token, studentId, payload) {
+  return request(`/users/admin/students/${studentId}/`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function changePassword(token, payload) {
+  return request('/users/change-password/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function clearAuthSession() {

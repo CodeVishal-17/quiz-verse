@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { getAuthSession } from '../../api/auth';
+import { Link, useNavigate } from 'react-router-dom';
+import { getAuthSession, changePassword, clearAuthSession } from '../../api/auth';
 import { getPublishedQuizzes, getMyRegistrations, registerForQuiz, processMockPayment } from '../../api/quizzes';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
 import './DashboardPage.css';
@@ -30,10 +30,16 @@ function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
 
   const isLight = theme === 'light';
   
   const session = getAuthSession();
+  const navigate = useNavigate();
   const studentData = session?.student || {};
   const student = {
     name: studentData.full_name || 'Student',
@@ -114,6 +120,40 @@ function DashboardPage() {
     setProfileImage(URL.createObjectURL(file));
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters.');
+      return;
+    }
+
+    try {
+      setPasswordLoading(true);
+      await changePassword(session?.token, {
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword,
+        confirm_password: passwordForm.confirmPassword,
+      });
+      setPasswordSuccess('Password changed successfully! Redirecting to login...');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => {
+        clearAuthSession();
+        navigate('/login');
+      }, 2000);
+    } catch (err) {
+      setPasswordError(err.data?.detail || err.message || 'Failed to change password.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const linePoints = '0,52 34,44 68,48 102,28 136,34 170,18 204,24 238,12';
 
   useEffect(() => {
@@ -158,6 +198,26 @@ function DashboardPage() {
             <strong className="stat-value">LVL {myRegistrations.length > 0 ? '02' : '01'}</strong>
           </div>
         </div>
+        <button
+          className="change-password-btn"
+          onClick={() => { setShowPasswordModal(true); setPasswordError(''); setPasswordSuccess(''); }}
+          style={{
+            marginTop: '1.2rem',
+            width: '100%',
+            padding: '0.75rem 1rem',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '8px',
+            color: 'rgba(255, 255, 255, 0.85)',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            letterSpacing: '0.05em',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          🔒 CHANGE PASSWORD
+        </button>
       </div>
     </article>
   );
@@ -442,6 +502,67 @@ function DashboardPage() {
           );
         })()}
       </aside>
+
+      {showPasswordModal && (
+        <div className="password-modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999,
+        }}>
+          <div className="password-modal" style={{
+            background: 'rgba(20, 20, 35, 0.95)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '420px',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+          }}>
+            <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.4rem', color: '#fff' }}>🔒 Change Password</h2>
+            <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)' }}>
+              Enter your current password and choose a new one.
+            </p>
+
+            {passwordError && <div style={{ color: '#ff6b6b', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem' }}>{passwordError}</div>}
+            {passwordSuccess && <div style={{ color: '#51cf66', background: 'rgba(81,207,102,0.1)', border: '1px solid rgba(81,207,102,0.2)', borderRadius: '8px', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem' }}>{passwordSuccess}</div>}
+
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.1em', marginBottom: '0.4rem' }}>CURRENT PASSWORD</label>
+                <input
+                  type="password" required placeholder="Enter current password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.1em', marginBottom: '0.4rem' }}>NEW PASSWORD</label>
+                <input
+                  type="password" required placeholder="At least 6 characters"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: '0.1em', marginBottom: '0.4rem' }}>CONFIRM NEW PASSWORD</label>
+                <input
+                  type="password" required placeholder="Re-enter new password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: '#fff', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setShowPasswordModal(false)}
+                  style={{ flex: 1, padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}
+                >CANCEL</button>
+                <button type="submit" disabled={passwordLoading}
+                  style={{ flex: 1, padding: '0.75rem', background: 'linear-gradient(135deg, #ffd700, #d4af37)', border: 'none', borderRadius: '8px', color: '#000', fontSize: '0.9rem', fontWeight: '700', cursor: passwordLoading ? 'wait' : 'pointer' }}
+                >{passwordLoading ? 'CHANGING...' : 'CHANGE PASSWORD'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

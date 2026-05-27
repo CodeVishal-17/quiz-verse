@@ -314,7 +314,7 @@
 }
 
 .tilt-card:hover {
-  transform: translateY(-5px) rotateX(2deg) rotateY(-2deg);
+  transform: translateY(-5px);
 }
 
 .metric-mint:hover { border-color: rgba(var(--admin-mint-rgb), 0.5); }
@@ -519,6 +519,11 @@
   border: 1px solid var(--admin-border);
   color: var(--admin-text);
   border-radius: 8px;
+}
+
+.admin-form-input option {
+  background-color: #0c1122 !important;
+  color: #ffffff !important;
 }
 
 .admin-form-input:focus {
@@ -1691,4 +1696,844 @@
       inset 0 0 12px rgba(255, 255, 255, 0.6);
     transform: scale(1.28);
   }
+}
+
+/* ========================================== */
+/* 5-Phase Visual Roadmap Bar               */
+/* ========================================== */
+
+.kbc-roadmap-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem 1.5rem;
+  margin-top: 1.5rem;
+  background: rgba(12, 17, 34, 0.95);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), inset 0 0 20px rgba(212, 175, 55, 0.03);
+}
+
+/* Background track line */
+.kbc-roadmap-track {
+  position: absolute;
+  top: 50%;
+  left: 60px;
+  right: 60px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  z-index: 0;
+  transform: translateY(-50%);
+}
+
+/* Active fill overlay */
+.kbc-roadmap-track-fill {
+  position: absolute;
+  top: 50%;
+  left: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #ffd700, #00bfff);
+  border-radius: 2px;
+  z-index: 1;
+  transform: translateY(-50%);
+  box-shadow: 0 0 12px rgba(0, 191, 255, 0.5);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Steps container */
+.kbc-roadmap-steps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+/* Individual step button */
+.kbc-roadmap-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  background: none !important;
+  border: none !important;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+  min-width: 80px;
+}
+
+.kbc-roadmap-step:focus {
+  outline: none;
+}
+
+/* Step medallion circle */
+.roadmap-medallion {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #090e1a;
+  border: 2.5px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.35);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Label wrap below medallion */
+.roadmap-label-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.roadmap-num {
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.25);
+  transition: all 0.3s ease;
+}
+
+.roadmap-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+  line-height: 1.3;
+  max-width: 95px;
+  transition: all 0.3s ease;
+}
+
+/* FUTURE state (default) */
+.kbc-roadmap-step.future .roadmap-medallion {
+  opacity: 0.6;
+}
+
+/* PASSED state */
+.kbc-roadmap-step.passed .roadmap-medallion {
+  background: #0d233a;
+  border-color: #ffd700;
+  color: #ffd700;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+}
+
+.kbc-roadmap-step.passed .roadmap-num,
+.kbc-roadmap-step.passed .roadmap-title {
+  color: rgba(255, 215, 0, 0.7);
+}
+
+/* ACTIVE state */
+.kbc-roadmap-step.active .roadmap-medallion {
+  background: radial-gradient(circle, #00bfff 0%, #005f9e 100%);
+  border-color: #ffd700;
+  color: #fff;
+  font-size: 1.15rem;
+  transform: scale(1.25);
+  box-shadow:
+    0 0 25px rgba(0, 191, 255, 0.6),
+    0 0 10px rgba(255, 215, 0, 0.4),
+    inset 0 0 8px rgba(255, 255, 255, 0.5);
+  animation: activePulse 2s infinite ease-in-out;
+}
+
+.kbc-roadmap-step.active .roadmap-num {
+  color: rgba(0, 191, 255, 0.9);
+}
+
+.kbc-roadmap-step.active .roadmap-title {
+  color: #fff;
+  font-weight: 900;
+  text-shadow: 0 0 8px rgba(0, 191, 255, 0.4);
+}
+
+/* HOVER state */
+.kbc-roadmap-step:hover:not(:disabled) .roadmap-medallion {
+  border-color: rgba(255, 215, 0, 0.8);
+  color: #ffd700;
+  transform: scale(1.1);
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.3);
+}
+
+.kbc-roadmap-step:hover:not(:disabled) .roadmap-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ========================================== */
+/* Host Copilot Card                         */
+/* ========================================== */
+
+.host-copilot-card {
+  background: rgba(12, 17, 34, 0.98) !important;
+  border: 1px solid rgba(0, 191, 255, 0.25) !important;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.65),
+    inset 0 0 20px rgba(0, 191, 255, 0.04),
+    0 0 1px rgba(0, 191, 255, 0.3) !important;
+}
+
+.copilot-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(0, 191, 255, 0.12);
+}
+
+.copilot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0, 191, 255, 0.1);
+  border: 1px solid rgba(0, 191, 255, 0.25);
+  color: #7de8eb;
+  padding: 0.35rem 0.8rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.copilot-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--admin-text);
+  margin-top: 0.4rem;
+}
+
+.copilot-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.copilot-step-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #ffd700;
+  margin: 0 0 0.4rem 0;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.15);
+}
+
+.copilot-step-desc {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+  margin: 0 0 1rem 0;
+}
+
+.copilot-actions-list h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: rgba(0, 191, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.copilot-actions-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.copilot-actions-list li {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.5;
+  padding-left: 1.2rem;
+  position: relative;
+}
+
+.copilot-actions-list li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: #ffd700;
+  font-weight: 900;
+}
+
+/* ========================================== */
+/* Control Deck 2-Column Layout              */
+/* ========================================== */
+
+.kbc-control-deck {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .kbc-control-deck {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kbc-deck-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.kbc-deck-main-panel {
+  min-width: 0; /* Prevent grid blowout from tables */
+}
+
+/* ========================================== */
+/* Contestant Hub & Hotseat Panel            */
+/* ========================================== */
+
+.hotseat-info-panel {
+  background: rgba(12, 17, 34, 0.98) !important;
+  border-color: rgba(255, 215, 0, 0.25) !important;
+}
+
+.hotseat-metrics-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.metrics-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.hs-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd700 0%, #ffa500 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.25);
+}
+
+.hs-name {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.15);
+}
+
+.hs-id {
+  display: block;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: monospace;
+  margin-top: 0.15rem;
+}
+
+.hs-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin: 1.2rem 0;
+}
+
+.hs-stat-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.hs-stat-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hs-stat-val {
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.hs-stat-val.text-gold {
+  color: #ffd700 !important;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.hs-stat-val.text-cyan {
+  color: #7de8eb !important;
+}
+
+/* Lifeline rack */
+.hs-lifelines-rack {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 1rem;
+}
+
+.hs-label {
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: block;
+  margin-bottom: 0.6rem;
+}
+
+.hs-lifelines-badges {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hs-badge {
+  flex: 1;
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 900;
+  transition: all 0.3s ease;
+}
+
+.hs-badge.ready {
+  background: rgba(0, 180, 216, 0.08);
+  border: 1px solid rgba(0, 180, 216, 0.25);
+  color: #7de8eb;
+}
+
+.hs-badge.used {
+  background: rgba(255, 99, 71, 0.06);
+  border: 1px solid rgba(255, 99, 71, 0.15);
+  color: rgba(255, 99, 71, 0.6);
+  text-decoration: line-through;
+}
+
+/* Status badges */
+.live-pulse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 50, 50, 0.12);
+  border: 1px solid rgba(255, 50, 50, 0.35);
+  color: #ff4444;
+  padding: 0.3rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  animation: pulseGlow 1.8s infinite ease-in-out;
+}
+
+.vacant-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.4);
+  padding: 0.3rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+/* ========================================== */
+/* Compact Prize Ladder (Sidebar)            */
+/* ========================================== */
+
+.prize-ladder-panel-compact {
+  padding: 1.25rem !important;
+}
+
+.kbc-ladder-grid-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.kbc-ladder-row-compact {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffae00;
+  opacity: 0.45;
+  transition: all 0.25s ease;
+}
+
+.kbc-ladder-row-compact.checkpoint {
+  color: #7de8eb;
+  opacity: 0.55;
+}
+
+.kbc-ladder-row-compact.jackpot {
+  color: #ffd700;
+  font-weight: 900;
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
+  opacity: 0.6;
+}
+
+.kbc-ladder-row-compact.active {
+  opacity: 1 !important;
+  color: #0c0b0a !important;
+  background: linear-gradient(90deg, #ffd700, #ffae00);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
+  font-weight: 900;
+  transform: scale(1.02);
+}
+
+.kbc-ladder-row-compact.passed {
+  opacity: 0.85;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: line-through;
+}
+
+.compact-q-num {
+  width: 22px;
+  text-align: right;
+  margin-right: 0.6rem;
+}
+
+.compact-q-sym {
+  margin-right: 0.6rem;
+  font-size: 0.6rem;
+}
+
+.compact-q-val {
+  flex: 1;
+  text-align: right;
+}
+
+/* ========================================== */
+/* Button Effects                            */
+/* ========================================== */
+
+/* Pulsing advance button */
+.pulse-button {
+  animation: pulseButton 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseButton {
+  0%, 100% {
+    box-shadow: 0 4px 15px rgba(0, 230, 118, 0.3);
+  }
+  50% {
+    box-shadow: 0 6px 30px rgba(0, 230, 118, 0.55), 0 0 50px rgba(0, 230, 118, 0.15);
+  }
+}
+
+/* Gold glow button */
+.glow-gold-button {
+  transition: all 0.3s ease;
+}
+
+.glow-gold-button:hover {
+  box-shadow: 0 6px 25px rgba(255, 215, 0, 0.4) !important;
+  transform: translateY(-2px);
+}
+
+/* Generic glow button */
+.glow-button {
+  transition: all 0.3s ease;
+  animation: goldGlow 2.5s infinite ease-in-out;
+}
+
+@keyframes goldGlow {
+  0%, 100% {
+    box-shadow: 0 6px 25px rgba(255, 215, 0, 0.35);
+  }
+  50% {
+    box-shadow: 0 8px 40px rgba(255, 215, 0, 0.6), 0 0 60px rgba(255, 215, 0, 0.15);
+  }
+}
+
+/* Golden heading glow */
+.golden-glow {
+  color: #ffd700;
+  text-shadow:
+    0 0 10px rgba(255, 215, 0, 0.3),
+    0 0 30px rgba(255, 215, 0, 0.1);
+}
+
+/* Manual stage override panel */
+.stage-director-panel-manual {
+  border-color: rgba(255, 179, 0, 0.25) !important;
+}
+
+/* ========================================== */
+/* Context Panels (Right Column)             */
+/* ========================================== */
+
+.context-panel {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Batch input cards */
+.batch-input-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 1.2rem;
+}
+
+.batch-input-card h4 {
+  margin: 0 0 0.8rem 0;
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #ffd700;
+}
+
+.batch-input-field {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  padding: 0.8rem;
+  font-family: monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+.batch-input-field:focus {
+  border-color: rgba(0, 191, 255, 0.5);
+  outline: none;
+  box-shadow: 0 0 10px rgba(0, 191, 255, 0.15);
+}
+
+.batch-count {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+}
+
+.batch-actions-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+/* FFF Standings specific */
+.fff-question-box {
+  background: rgba(255, 215, 0, 0.04);
+  border: 1px solid rgba(255, 215, 0, 0.15);
+  border-radius: 8px;
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.fff-question-box h4 {
+  margin: 0 0 0.5rem;
+  color: #ffd700;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.fff-question-text {
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.fff-standings-table {
+  overflow-x: auto;
+}
+
+.fff-winner-row {
+  background: rgba(255, 215, 0, 0.08) !important;
+  border-left: 3px solid #ffd700;
+}
+
+.winner-crown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  color: #ffd700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.3);
+}
+
+.badge-correct {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(76, 175, 80, 0.12);
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  color: #4caf50;
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.badge-incorrect {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 99, 71, 0.1);
+  border: 1px solid rgba(255, 99, 71, 0.3);
+  color: #ff6347;
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* Emerald & Rose utility colors */
+.text-emerald {
+  color: #4caf50 !important;
+}
+
+.text-rose {
+  color: #ff6347 !important;
+}
+
+/* ========================================== */
+/* Podium (Concluded Stage)                  */
+/* ========================================== */
+
+.podium-panel {
+  text-align: center;
+}
+
+.podium-showcase {
+  margin-top: 2rem;
+}
+
+.podium-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.podium-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.podium-crown {
+  font-size: 2rem;
+  animation: floatGold 1.5s infinite alternate ease-in-out;
+}
+
+.podium-rank {
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.podium-gold .podium-rank {
+  color: #ffd700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.podium-silver .podium-rank {
+  color: #c0c0c0;
+}
+
+.podium-bronze .podium-rank {
+  color: #cd7f32;
+}
+
+.podium-player-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+  max-width: 140px;
+  text-align: center;
+}
+
+.podium-player-score {
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.podium-bar {
+  width: 100%;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.5s ease;
+}
+
+.gold-bar {
+  height: 140px;
+  background: linear-gradient(180deg, #ffd700 0%, #b8860b 100%);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+.silver-bar {
+  height: 100px;
+  background: linear-gradient(180deg, #c0c0c0 0%, #808080 100%);
+  box-shadow: 0 0 15px rgba(192, 192, 192, 0.2);
+}
+
+.bronze-bar {
+  height: 70px;
+  background: linear-gradient(180deg, #cd7f32 0%, #8b4513 100%);
+  box-shadow: 0 0 12px rgba(205, 127, 50, 0.2);
+}
+
+/* ========================================== */
+/* Glass Card Utility                        */
+/* ========================================== */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+
+/* ========================================== */
+/* Mini Table (compact reference tables)     */
+/* ========================================== */
+
+.mini-table .kbc-table th {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.72rem;
+}
+
+.mini-table .kbc-table td {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
 }
