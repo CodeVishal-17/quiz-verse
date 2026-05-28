@@ -360,12 +360,12 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   };
 
   const navigation = [
-    { label: 'Overview', symbol: SYMBOLS.square },
-    { label: 'Manage Quizzes', symbol: SYMBOLS.quizzes },
-    { label: 'Live KBC Controller', symbol: SYMBOLS.sun },
-    { label: 'Quiz Enrollment', symbol: SYMBOLS.users },
-    { label: 'Student Accounts', symbol: '\u2605' },
-    { label: 'System Settings', symbol: SYMBOLS.gear },
+    { label: 'Overview', symbol: '📊' },
+    { label: 'Manage Quizzes', symbol: '🗂️' },
+    { label: 'Live KBC Controller', symbol: '🎮' },
+    { label: 'Quiz Enrollment', symbol: '🎟️' },
+    { label: 'Student Accounts', symbol: '👥' },
+    { label: 'System Settings', symbol: '⚙️' },
   ];
 
   // KBC Controller States
@@ -1467,7 +1467,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       <aside className={`admin-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} aria-label="Dashboard navigation">
         <div className="admin-sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarCollapsed ? 'center' : 'space-between', width: '100%', gap: '0.5rem', minHeight: '56px' }}>
           <Link className="admin-brand" to="/" style={{ gap: isSidebarCollapsed ? '0' : '0.85rem', display: 'flex', alignItems: 'center', minHeight: 'auto', padding: 0 }}>
-            <span>{SYMBOLS.triangle}</span>
+            <span className="admin-brand-logo">{SYMBOLS.triangle}</span>
             {!isSidebarCollapsed && <span className="admin-brand-text" style={{ whiteSpace: 'nowrap' }}>QuizVerse Admin</span>}
           </Link>
           <button 
