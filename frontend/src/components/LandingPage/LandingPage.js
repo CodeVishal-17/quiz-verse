@@ -18,88 +18,7 @@ const SYMBOLS = {
 };
 
 function LandingPage() {
-  const systemCards = [
-    {
-      symbol: SYMBOLS.triangle,
-      value: '3',
-      label: 'Lifelines',
-      detail: '50:50, Audience Poll, Switch Question.',
-      tone: 'pink',
-    },
-    {
-      symbol: SYMBOLS.circle,
-      value: '1',
-      label: 'Hotseat',
-      detail: 'The ultimate stage of survival.',
-      tone: 'mint',
-    },
-    {
-      symbol: SYMBOLS.square,
-      value: '1',
-      label: 'Codepati',
-      detail: 'One player rises above all to win the grand title.',
-      tone: 'cream',
-    },
-  ];
 
-  const featureCards = [
-    {
-      icon: SYMBOLS.sword,
-      title: 'Monthly Campus Battles',
-      text: 'Compete against the brightest minds from every school in intense monthly showdowns built around speed, accuracy, and survival under pressure.',
-      className: 'card-battles',
-    },
-    {
-      icon: SYMBOLS.block,
-      title: 'Live Rankings',
-      text: 'Track score movement as the arena updates in real time. Every correct answer, streak, and response window changes the broadcast board.',
-      className: 'card-rankings',
-    },
-    {
-      icon: SYMBOLS.diamond,
-      title: 'Final Round Access',
-      text: 'Only the strongest contenders secure access to the final survival stage where the title is decided.',
-      className: 'card-access',
-    },
-    {
-      icon: SYMBOLS.wave,
-      title: 'Fastest Finger First',
-      text: 'Lightning rounds reward sharp recall and clean timing before the main survival ladder opens.',
-      className: 'card-finger',
-    },
-    {
-      icon: SYMBOLS.ring,
-      title: 'Live Match Updates',
-      text: 'Arena panels surface active rounds, score pulses, and qualification movement as the battle unfolds.',
-      className: 'card-updates',
-    },
-    {
-      icon: SYMBOLS.panel,
-      title: 'Qualification Status',
-      text: 'Know exactly when your run crosses from contender to finalist with visible zone progress.',
-      className: 'card-status',
-    },
-    {
-      icon: SYMBOLS.filledTriangle,
-      title: 'Top Schools',
-      text: 'Campus-wide school boards spotlight the strongest departments across every monthly event.',
-      className: 'card-schools',
-    },
-    {
-      icon: SYMBOLS.square,
-      title: 'Branch Rankings',
-      text: 'Branch-specific leaderboards keep rivalries sharp and make every cohort visible in the system.',
-      className: 'card-branches',
-    },
-    {
-      icon: SYMBOLS.window,
-      title: 'Final Access Window',
-      text: 'A limited entry window opens for qualified players before the final arena locks.',
-      className: 'card-window',
-    },
-  ];
-
-  const schoolLine = (school, year) => `${school} ${SYMBOLS.dot} ${year}`;
 
   return (
     <main className="landing-page kbc-broadcast">
@@ -148,51 +67,7 @@ function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-flashcards-section">
-        <div className="flashcards-container">
-          <div className="flashcards-header">
-            <h2>SYSTEM PARAMETERS</h2>
-            <p>Understand the rules of the arena.</p>
-          </div>
 
-          <div className="system-cards-grid">
-            {systemCards.map((card) => (
-              <button className={`flashcard flip-card-container system-card system-${card.tone}`} key={card.label}>
-                <span className="system-card-orbit">{card.symbol}</span>
-                <div className="flip-card-inner">
-                  <div className="flip-card-front">
-                    <div className="front-symbols">
-                      <span>{card.symbol}</span>
-                    </div>
-                    <div className="front-value">{card.value}</div>
-                    <div className="front-label">{card.label}</div>
-                  </div>
-                  <div className="flip-card-back">
-                    <div className="back-symbol">{card.symbol}</div>
-                    <h3>{card.value} {card.label}</h3>
-                    <p>{card.detail}</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="flashcards-grid">
-            {featureCards.map((card) => (
-              <article className={`flashcard normal-card ${card.className}`} key={card.title}>
-                <div className="card-topline">
-                  <div className="card-icon">{card.icon}</div>
-                  <span>LIVE MODULE</span>
-                </div>
-                <h3>{card.title}</h3>
-                <div className="card-copy">
-                  <p>{card.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
     </main>
   );
 }
