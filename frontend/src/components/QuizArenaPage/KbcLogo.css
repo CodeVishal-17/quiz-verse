@@ -1,0 +1,89 @@
+.kbc-logo-wrapper {
+  width: 400px;
+  height: 400px;
+  margin: 0 auto 30px auto;
+  position: relative;
+  filter: drop-shadow(0 0 25px rgba(0, 240, 255, 0.35)) drop-shadow(0 20px 40px rgba(0, 0, 0, 0.8));
+  animation: logoFloat 6s ease-in-out infinite;
+  user-select: none;
+}
+
+.kbc-logo-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* cyber-grid slow rotate animation for high-tech feeling */
+.cyber-grid {
+  transform-origin: 250px 250px;
+  animation: gridRotate 90s linear infinite;
+}
+
+/* Subtle glowing pulse for the neon rupee back glows */
+.rupee-ring path {
+  animation: rupeePulse 4s ease-in-out infinite;
+}
+
+/* Sweep shine effect on the horizontal text backdrop */
+.center-title-badge rect {
+  animation: badgeGlow 5s ease-in-out infinite alternate;
+}
+
+/* Floating animation for the overall logo */
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) rotate(0.3deg) scale(1.01);
+  }
+}
+
+@keyframes gridRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rupeePulse {
+  0%, 100% {
+    opacity: 0.6;
+    stroke-width: 4.5;
+  }
+  50% {
+    opacity: 0.95;
+    stroke-width: 6;
+  }
+}
+
+@keyframes badgeGlow {
+  0% {
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.25));
+  }
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 18px rgba(0, 240, 255, 0.55));
+  }
+}
+
+/* Responsive adjustment for small screens */
+@media (max-width: 768px) {
+  .kbc-logo-wrapper {
+    width: 320px;
+    height: 320px;
+    margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .kbc-logo-wrapper {
+    width: 270px;
+    height: 270px;
+    margin-bottom: 15px;
+  }
+}

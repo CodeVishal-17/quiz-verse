@@ -590,6 +590,7 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             "lifeline_request_status": attempt.lifeline_request_status,
             "pending_lifeline_type": attempt.pending_lifeline_type,
             "pending_lifeline_switch_category": attempt.pending_lifeline_switch_category,
+            "approved_lifeline_data": attempt.approved_lifeline_data,
             "timer_is_paused": attempt.timer_is_paused,
             "options_visible": attempt.options_visible,
             "showing_question": attempt.showing_question,
@@ -932,52 +933,41 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
         elif payment_status not in [QuizRegistration.PaymentStatus.PAID, QuizRegistration.PaymentStatus.PENDING]:
             payment_status = QuizRegistration.PaymentStatus.PAID
 
+        college_id = college_id.upper().strip()
+        email = email.strip().lower()
+
+        # Query existing student accounts strictly by roll_number or email case-insensitively
+        from django.db.models import Q
+        user = User.objects.filter(
+            Q(roll_number__iexact=college_id) | 
+            Q(college_id__iexact=college_id) | 
+            Q(email__iexact=email)
+        ).first()
+
+        if not user:
+            return Response(
+                {"detail": "Student account not found. Please create the student account under 'Student Accounts' first."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if user.role != User.Role.STUDENT:
+            return Response(
+                {"detail": "The specified user is not a student account."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             with transaction.atomic():
-                user, created = User.objects.get_or_create(
-                    email=email,
-                    defaults={
-                        'full_name': full_name,
-                        'college_id': college_id,
-                        'roll_number': college_id,
-                        'role': User.Role.STUDENT
-                    }
-                )
-                if created:
-                    user.set_password("KBC123")
-                    user.save()
-                else:
-                    changed = False
-                    if not user.college_id:
-                        user.college_id = college_id
-                        changed = True
-                    if not user.roll_number:
-                        user.roll_number = college_id
-                        changed = True
-                    if changed:
-                        user.save()
-
-                from users.models import School, Program, Branch, StudentProfile
-                if not hasattr(user, 'student_profile'):
-                    school = School.objects.first()
-                    if not school:
-                        school = School.objects.create(school_name="Default School", school_code="DEFAULT_SCH")
-                    
-                    program = Program.objects.filter(school=school).first()
-                    if not program:
-                        program = Program.objects.create(school=school, program_name="Default Program", program_code="DEFAULT_PROG")
-                    
-                    branch = Branch.objects.filter(program=program).first()
-                    if not branch:
-                        branch = Branch.objects.create(program=program, branch_name="Default Branch", branch_code="DEFAULT_BR")
-
-                    StudentProfile.objects.create(
-                        user=user,
-                        school=school,
-                        program=program,
-                        branch=branch,
-                        year=StudentProfile.Year.FIRST
-                    )
+                # Make sure the user's roll_number and college_id are capitalized to prevent cased duplicate lookups
+                changed = False
+                if user.roll_number != user.roll_number.upper():
+                    user.roll_number = user.roll_number.upper()
+                    changed = True
+                if user.college_id != user.college_id.upper():
+                    user.college_id = user.college_id.upper()
+                    changed = True
+                if changed:
+                    user.save(update_fields=['roll_number', 'college_id', 'updated_at'])
 
                 if QuizRegistration.objects.filter(student=user, quiz=quiz).exists():
                     reg = QuizRegistration.objects.get(student=user, quiz=quiz)
@@ -1578,6 +1568,7 @@ class QuizLiveStateView(APIView):
         return Response({
             "quiz_id": quiz.id,
             "title": quiz.title,
+            "intro_title": quiz.intro_title or "Kaun Banega Codepati",
             "current_stage": quiz.current_stage,
             "student_role": role,
             "batch_number": batch_number,
@@ -2519,6 +2510,7 @@ class AdminCompleteIntroView(APIView):
             
         attempt = get_object_or_404(HotseatAttempt, quiz=quiz, student=player, batch_number=batch)
         attempt.show_intro = False
+        attempt.intro_played = True
         attempt.save()
         
         return Response({

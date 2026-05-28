@@ -71,6 +71,7 @@ class Quiz(models.Model):
 
     max_participants = models.IntegerField(blank=True, null=True)
     registration_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    intro_title = models.CharField(max_length=200, default="Kaun Banega Codepati", blank=True)
 
     # Eligibility constraints
     allowed_schools = models.ManyToManyField(School, blank=True)
@@ -278,6 +279,7 @@ class HotseatAttempt(models.Model):
     options_visible = models.BooleanField(default=False)
     showing_question = models.BooleanField(default=True)
     show_intro = models.BooleanField(default=False)
+    intro_played = models.BooleanField(default=False)
 
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)

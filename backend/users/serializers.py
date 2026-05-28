@@ -109,10 +109,10 @@ class AdminStudentCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         attrs["full_name"] = attrs["full_name"].strip()
-        attrs["roll_number"] = attrs["roll_number"].strip()
+        attrs["roll_number"] = attrs["roll_number"].strip().upper()
         
         # Populate college_id from roll_number if not provided
-        attrs["college_id"] = attrs.get("college_id", attrs["roll_number"]).strip()
+        attrs["college_id"] = attrs.get("college_id", attrs["roll_number"]).strip().upper()
         if not attrs["college_id"]:
             attrs["college_id"] = attrs["roll_number"]
             
@@ -178,10 +178,10 @@ class AdminStudentUpdateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         attrs["full_name"] = attrs["full_name"].strip()
-        attrs["roll_number"] = attrs["roll_number"].strip()
+        attrs["roll_number"] = attrs["roll_number"].strip().upper()
         
         # Populate college_id from roll_number if not provided
-        attrs["college_id"] = attrs.get("college_id", attrs["roll_number"]).strip()
+        attrs["college_id"] = attrs.get("college_id", attrs["roll_number"]).strip().upper()
         if not attrs["college_id"]:
             attrs["college_id"] = attrs["roll_number"]
             

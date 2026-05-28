@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './HotseatIntro.css';
+import KbcLogo from './KbcLogo';
 
-export default function HotseatIntro({ onComplete, onTransitionStart, contestantName }) {
+export default function HotseatIntro({ onComplete, onTransitionStart, contestantName, introTitle }) {
   const [stage, setStage] = useState('start'); // start -> zoom -> flash -> welcome -> fade-out -> finish
   const audioRef = useRef(null);
+
+  const fullTitle = introTitle || "Kaun Banega Codepati";
 
   useEffect(() => {
     // Play music
@@ -80,11 +83,7 @@ export default function HotseatIntro({ onComplete, onTransitionStart, contestant
       </div>
       
       <div className="intro-content" style={{ opacity: (stage === 'start' || stage === 'welcome' || stage === 'fade-out' || stage === 'finish') ? 0 : 1, transition: 'opacity 1s ease' }}>
-        <h1 className="intro-title">KAUN BANEGA</h1>
-        <div className="title-gold-wrapper">
-          <h1 className="intro-title-gold">CODEPATI</h1>
-          <div className="text-sweep-light"></div>
-        </div>
+        <KbcLogo title={fullTitle} />
         
         <div className="intro-player-card">
           <p className="intro-subtitle">HOTSEAT CONTENDER</p>

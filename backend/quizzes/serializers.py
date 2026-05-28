@@ -25,7 +25,7 @@ class QuizSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'event_date', 
             'registration_open_date', 'registration_close_date', 
             'status', 'visible_to_students', 'is_registration_open', 'is_archived',
-            'max_participants', 'registration_fee', 'banner_image', 
+            'max_participants', 'registration_fee', 'banner_image', 'intro_title',
             'rules_instructions', 'allowed_schools', 'allowed_programs', 
             'allowed_branches', 'allowed_years', 'registered_count', 'remaining_seats',
             'event_password', 'current_stage', 'top_30_selected', 
@@ -159,7 +159,7 @@ class HotseatAttemptSerializer(serializers.ModelSerializer):
             'lifeline_poll_used', 'lifeline_switch_used', 'started_at', 'completed_at',
             'pending_lifeline_type', 'pending_lifeline_switch_category', 
             'lifeline_request_status', 'approved_lifeline_data', 'current_question_switched',
-            'timer_is_paused', 'options_visible', 'showing_question', 'show_intro'
+            'timer_is_paused', 'options_visible', 'showing_question', 'show_intro', 'intro_played'
         ]
         read_only_fields = ['started_at', 'completed_at']
 

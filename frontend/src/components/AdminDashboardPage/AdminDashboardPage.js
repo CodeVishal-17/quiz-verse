@@ -70,6 +70,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     registration_close_date: '', registration_close_time: '', 
     max_participants: '100',
     registration_fee: '0', visible_to_students: false, is_registration_open: false,
+    intro_title: 'Kaun Banega Codepati',
     require_eligibility: false,
     eligibility_school: '',
     eligibility_programs: [],
@@ -955,6 +956,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       registration_close_date: '', registration_close_time: '', 
       max_participants: '100',
       registration_fee: '0', visible_to_students: false, is_registration_open: false,
+      intro_title: 'Kaun Banega Codepati',
       require_eligibility: false,
       eligibility_school: '',
       eligibility_programs: [],
@@ -996,6 +998,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       registration_fee: quiz.registration_fee ? quiz.registration_fee.toString() : '0',
       visible_to_students: quiz.visible_to_students || false,
       is_registration_open: quiz.is_registration_open || false,
+      intro_title: quiz.intro_title || 'Kaun Banega Codepati',
       require_eligibility: !!(quiz.allowed_schools?.length || quiz.allowed_programs?.length || quiz.allowed_branches?.length),
       eligibility_school: quiz.allowed_schools?.[0] || '',
       eligibility_programs: quiz.allowed_programs || [],
@@ -1333,6 +1336,10 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
   const submitQuiz = async (isDraft) => {
     try {
+      if (!formData.eligibility_branches || formData.eligibility_branches.length === 0) {
+        alert("Please select at least one Target Branch.");
+        return;
+      }
       setSubmitLoading(true);
       const payload = { ...formData };
       
@@ -1365,15 +1372,9 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       payload.max_participants = payload.max_participants ? parseInt(payload.max_participants) : null;
       payload.registration_fee = payload.registration_fee ? parseFloat(payload.registration_fee) : 0.00;
       
-      if (!payload.require_eligibility) {
-        payload.allowed_schools = [];
-        payload.allowed_programs = [];
-        payload.allowed_branches = [];
-      } else {
-        payload.allowed_schools = payload.eligibility_school ? [payload.eligibility_school] : [];
-        payload.allowed_programs = payload.eligibility_programs || [];
-        payload.allowed_branches = payload.eligibility_branches || [];
-      }
+      payload.allowed_schools = payload.eligibility_school ? [payload.eligibility_school] : [];
+      payload.allowed_programs = payload.eligibility_programs || [];
+      payload.allowed_branches = payload.eligibility_branches || [];
       delete payload.require_eligibility;
       delete payload.eligibility_school;
       delete payload.eligibility_programs;
@@ -1476,11 +1477,37 @@ function AdminDashboardInner({ showBeautifulPopup }) {
           ))}
         </nav>
 
-        <div className="admin-sidebar-footer" style={{ marginTop: 'auto' }}>
-          <Link to="/login" className="admin-sidebar-item" style={{ textDecoration: 'none' }}>
-            <span className="admin-sidebar-icon" style={{ color: 'rgb(255,100,100)' }}>{SYMBOLS.exit}</span>
-            <span className="admin-sidebar-label" style={{ color: 'rgb(255,100,100)' }}>LOGOUT</span>
-            <span className="admin-sidebar-hover-symbol" style={{ color: 'rgb(255,100,100)' }}>{SYMBOLS.exit}</span>
+        <div className="admin-sidebar-footer" style={{ marginTop: 'auto', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', width: '100%' }}>
+          <Link 
+            to="/login" 
+            className="admin-sidebar-item" 
+            style={{ 
+              textDecoration: 'none', 
+              border: '1px solid rgba(255, 107, 107, 0.25)', 
+              background: 'rgba(255, 107, 107, 0.03)',
+              borderRadius: '8px',
+              padding: '0 1rem',
+              minHeight: '50px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.7)';
+              e.currentTarget.style.background = 'rgba(255, 107, 107, 0.08)';
+              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 107, 107, 0.25)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.25)';
+              e.currentTarget.style.background = 'rgba(255, 107, 107, 0.03)';
+              e.currentTarget.style.boxShadow = 'none';
+              e.currentTarget.style.transform = 'none';
+            }}
+          >
+            <span className="admin-sidebar-icon" style={{ color: '#ff6b6b' }}>{SYMBOLS.exit}</span>
+            <span className="admin-sidebar-label" style={{ color: '#ff6b6b', fontWeight: '900', letterSpacing: '0.07em' }}>LOGOUT</span>
+            <span className="admin-sidebar-hover-symbol" style={{ color: '#ff6b6b' }}>{SYMBOLS.exit}</span>
           </Link>
         </div>
       </aside>
@@ -1493,55 +1520,267 @@ function AdminDashboardInner({ showBeautifulPopup }) {
           </div>
         </header>
 
-        {activeTab === 'Overview' && (
-          <>
-            <section className="admin-metrics-grid">
-              <article className="admin-metric-card tilt-card metric-mint">
-                <div className="metric-header">
-                  <span>{SYMBOLS.users}</span>
-                  <h2>Total Students</h2>
-                </div>
-                <div className="metric-value">{adminStats.total_students}</div>
-                <div className="metric-footer">Active Accounts</div>
-              </article>
+        {activeTab === 'Overview' && (() => {
+          // Dynamically compute student year ratios for premium demographics bar charts
+          const year1Count = allStudents.filter(s => String(s.year) === '1').length;
+          const year2Count = allStudents.filter(s => String(s.year) === '2').length;
+          const year3Count = allStudents.filter(s => String(s.year) === '3').length;
+          const year4Count = allStudents.filter(s => String(s.year) === '4').length;
+          const maxCount = Math.max(year1Count, year2Count, year3Count, year4Count, 1);
+          
+          return (
+            <>
+              {/* Premium 4-Card Stats Grid */}
+              <section className="admin-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                <article className="admin-metric-card tilt-card metric-mint" style={{ background: 'rgba(10, 17, 69, 0.45)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 8px 32px 0 rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+                  <div className="metric-header" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '1.5rem', background: 'rgba(21, 101, 192, 0.15)', color: '#42a5f5', padding: '0.4rem', borderRadius: '8px', width: '38px', height: '38px', display: 'grid', placeItems: 'center' }}>👥</span>
+                    <h2 style={{ margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--admin-muted)' }}>Registered Students</h2>
+                  </div>
+                  <div className="metric-value" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff' }}>{adminStats.total_students}</div>
+                  <div className="metric-footer" style={{ fontSize: '0.8rem', color: '#42a5f5', marginTop: '0.5rem', fontFamily: 'monospace' }}>Verified Profiles</div>
+                </article>
 
-              <article className="admin-metric-card tilt-card metric-pink">
-                <div className="metric-header">
-                  <span>{SYMBOLS.quizzes}</span>
-                  <h2>Total Quizzes</h2>
-                </div>
-                <div className="metric-value">{adminStats.total_quizzes}</div>
-                <div className="metric-footer">{adminStats.active_quizzes} Published</div>
-              </article>
+                <article className="admin-metric-card tilt-card metric-pink" style={{ background: 'rgba(10, 17, 69, 0.45)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 8px 32px 0 rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+                  <div className="metric-header" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '1.5rem', background: 'rgba(255, 179, 0, 0.15)', color: '#ffd54f', padding: '0.4rem', borderRadius: '8px', width: '38px', height: '38px', display: 'grid', placeItems: 'center' }}>🏆</span>
+                    <h2 style={{ margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--admin-muted)' }}>Total Quiz Events</h2>
+                  </div>
+                  <div className="metric-value" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff' }}>{adminStats.total_quizzes}</div>
+                  <div className="metric-footer" style={{ fontSize: '0.8rem', color: '#ffd54f', marginTop: '0.5rem', fontFamily: 'monospace' }}>{adminStats.active_quizzes} Published</div>
+                </article>
 
-              <article className="admin-metric-card tilt-card metric-cyan">
-                <div className="metric-header">
-                  <span>{SYMBOLS.bell}</span>
-                  <h2>System Status</h2>
-                </div>
-                <div className="metric-value">Online</div>
-                <div className="metric-footer">All nodes nominal</div>
-              </article>
+                <article className="admin-metric-card tilt-card metric-yellow" style={{ background: 'rgba(10, 17, 69, 0.45)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 8px 32px 0 rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+                  <div className="metric-header" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '1.5rem', background: 'rgba(255, 213, 79, 0.15)', color: '#ffb300', padding: '0.4rem', borderRadius: '8px', width: '38px', height: '38px', display: 'grid', placeItems: 'center' }}>🎟️</span>
+                    <h2 style={{ margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--admin-muted)' }}>Contestant Registrations</h2>
+                  </div>
+                  <div className="metric-value" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff' }}>{adminStats.total_registrations}</div>
+                  <div className="metric-footer" style={{ fontSize: '0.8rem', color: '#ffb300', marginTop: '0.5rem', fontFamily: 'monospace' }}>Across all arenas</div>
+                </article>
 
-              <article className="admin-metric-card tilt-card metric-yellow">
-                <div className="metric-header">
-                  <span>{SYMBOLS.diamond}</span>
-                  <h2>Registrations</h2>
-                </div>
-                <div className="metric-value">{adminStats.total_registrations}</div>
-                <div className="metric-footer">Across all quizzes</div>
-              </article>
-            </section>
+                <article className="admin-metric-card tilt-card metric-cyan" style={{ background: 'rgba(10, 17, 69, 0.45)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 8px 32px 0 rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)' }}>
+                  <div className="metric-header" style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '1.5rem', background: 'rgba(0, 180, 216, 0.15)', color: '#00b4d8', padding: '0.4rem', borderRadius: '8px', width: '38px', height: '38px', display: 'grid', placeItems: 'center' }}>🌐</span>
+                    <h2 style={{ margin: 0, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--admin-muted)' }}>Arena Node Link</h2>
+                  </div>
+                  <div className="metric-value" style={{ fontSize: '2.5rem', fontWeight: '900', color: '#4caf50', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Online <span className="pulse-dot" style={{ display: 'inline-block', width: '12px', height: '12px', background: '#4caf50', borderRadius: '50%', boxShadow: '0 0 10px #4caf50' }} />
+                  </div>
+                  <div className="metric-footer" style={{ fontSize: '0.8rem', color: '#4caf50', marginTop: '0.5rem', fontFamily: 'monospace' }}>Websocket Synced</div>
+                </article>
+              </section>
 
-            <section className="admin-overview-hero" style={{marginTop: '2rem'}}>
-              <div className="overview-copy" style={{width: '100%'}}>
-                <span className="overview-status">Overview</span>
-                <h2>Main Facility</h2>
-                <p>Welcome to the command center. Navigate to Manage Quizzes to orchestrate events.</p>
+              {/* 2-Column Command Layout */}
+              <div className="overview-dashboard-grid" style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: '2rem', marginTop: '1.5rem' }}>
+                
+                {/* Left Panel - Command Area (70%) */}
+                <div className="overview-main-flow" style={{ display: 'flex', flexDirection: 'column', gap: '1.8rem' }}>
+                  
+                  {/* Active live arena controller sector */}
+                  <div className="kbc-panel glass-card" style={{ padding: '2rem', background: 'rgba(12, 17, 34, 0.95)', border: '1px solid rgba(212, 175, 55, 0.3)', borderRadius: '12px', position: 'relative', overflow: 'hidden' }}>
+                    <div className="glowing-border-glow" style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'linear-gradient(180deg, #ffd700, transparent)' }} />
+                    <span className="overview-status" style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid rgba(212, 175, 55, 0.6)', color: '#ffd700', padding: '0.3rem 0.8rem', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      ⚡ LIVE COMMAND CENTER
+                    </span>
+                    <h3 style={{ margin: '1rem 0 0.5rem 0', fontSize: '1.6rem', fontWeight: '900', color: '#fff' }}>Hotseat Arena Host Console</h3>
+                    <p style={{ margin: '0 0 1.5rem 0', color: 'var(--admin-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                      Orchestrate pacing triggers, time limits, lifeline resets, and push fresh questions to live contestants in real-time. Broadcast sequences directly onto spectator screens.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('Live KBC Controller')}
+                      className="dash-chip-btn"
+                      style={{
+                        background: 'linear-gradient(135deg, #ffd700 0%, #ffa200 100%)',
+                        color: '#050a2e',
+                        border: 'none',
+                        fontWeight: '900',
+                        padding: '0.8rem 1.8rem',
+                        fontSize: '0.9rem',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 15px rgba(255, 215, 0, 0.25)',
+                        transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(255, 215, 0, 0.4)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(255, 215, 0, 0.25)';
+                      }}
+                    >
+                      LAUNCH CONTROLLER 🎬
+                    </button>
+                  </div>
+
+                  {/* Recent Quiz Sectors Table */}
+                  <div className="kbc-panel glass-card" style={{ padding: '1.75rem', background: 'rgba(12, 17, 34, 0.95)', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#ffd700' }}>Active Quiz Sectors</h3>
+                    <p className="panel-subtitle" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.2rem' }}>
+                      Platform-wide database events overview
+                    </p>
+
+                    {quizzes.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--admin-muted)', fontStyle: 'italic' }}>
+                        No quiz sectors found. Create one in Quiz Management.
+                      </div>
+                    ) : (
+                      <div className="table-responsive" style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '550px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(212, 175, 55, 0.25)', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>
+                              <th style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold' }}>QUIZ TITLE</th>
+                              <th style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold' }}>ENROLLED</th>
+                              <th style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold' }}>ELIGIBILITY</th>
+                              <th style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold' }}>STATUS</th>
+                              <th style={{ padding: '0.75rem 0.5rem', fontWeight: 'bold', textAlign: 'right' }}>ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quizzes.slice(0, 3).map((q) => (
+                              <tr key={q.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.9rem' }}>
+                                <td style={{ padding: '0.85rem 0.5rem' }}>
+                                  <div style={{ fontWeight: 'bold', color: '#fff' }}>{q.title}</div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--admin-muted)', fontFamily: 'monospace' }}>
+                                    {q.event_date ? `${q.event_date} @ ${q.event_time || ''}` : 'No date set'}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '0.85rem 0.5rem', fontWeight: 'bold', color: '#ffd54f' }}>
+                                  {q.registered_count || 0} enrolled
+                                </td>
+                                <td style={{ padding: '0.85rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.8rem' }}>
+                                  {q.require_eligibility ? '🔒 Restricted' : '🔓 Open Access'}
+                                </td>
+                                <td style={{ padding: '0.85rem 0.5rem' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 'bold',
+                                    background: q.visible_to_students ? 'rgba(76, 175, 80, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                    color: q.visible_to_students ? '#4caf50' : 'rgba(255,255,255,0.5)',
+                                    border: q.visible_to_students ? '1px solid rgba(76, 175, 80, 0.3)' : '1px solid rgba(255,255,255,0.1)'
+                                  }}>
+                                    {q.visible_to_students ? 'VISIBLE' : 'DRAFT'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.85rem 0.5rem', textAlign: 'right' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveTab('Manage Quizzes')}
+                                    className="dash-chip-btn"
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      padding: '0.3rem 0.7rem',
+                                      background: 'rgba(212, 175, 55, 0.1)',
+                                      borderColor: 'rgba(212, 175, 55, 0.3)',
+                                      color: '#ffd700'
+                                    }}
+                                  >
+                                    Manage 🛠️
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Panel - Analytics & Telemetry (30%) */}
+                <div className="overview-sidebar-flow" style={{ display: 'flex', flexDirection: 'column', gap: '1.8rem' }}>
+                  
+                  {/* Student Demographics Card */}
+                  <div className="kbc-panel glass-card" style={{ padding: '1.5rem', background: 'rgba(12, 17, 34, 0.95)', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ffd700' }}>Student Demographics</h3>
+                    <p className="panel-subtitle" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)', marginBottom: '1.2rem' }}>
+                      Distribution by academic year
+                    </p>
+
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                      {/* Year 1 */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem' }}>
+                          <span style={{ color: 'var(--admin-text)' }}>1st Year Accounts</span>
+                          <span style={{ fontWeight: 'bold', color: '#ffd54f' }}>{year1Count} ({Math.round((year1Count/maxCount)*100) || 0}%)</span>
+                        </div>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${(year1Count/maxCount)*100}%`, height: '100%', background: 'linear-gradient(90deg, #ffd700, #ffae00)', borderRadius: '4px' }} />
+                        </div>
+                      </div>
+
+                      {/* Year 2 */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem' }}>
+                          <span style={{ color: 'var(--admin-text)' }}>2nd Year Accounts</span>
+                          <span style={{ fontWeight: 'bold', color: '#42a5f5' }}>{year2Count} ({Math.round((year2Count/maxCount)*100) || 0}%)</span>
+                        </div>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${(year2Count/maxCount)*100}%`, height: '100%', background: 'linear-gradient(90deg, #42a5f5, #0080ff)', borderRadius: '4px' }} />
+                        </div>
+                      </div>
+
+                      {/* Year 3 */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem' }}>
+                          <span style={{ color: 'var(--admin-text)' }}>3rd Year Accounts</span>
+                          <span style={{ fontWeight: 'bold', color: '#e040fb' }}>{year3Count} ({Math.round((year3Count/maxCount)*100) || 0}%)</span>
+                        </div>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${(year3Count/maxCount)*100}%`, height: '100%', background: 'linear-gradient(90deg, #e040fb, #ab47bc)', borderRadius: '4px' }} />
+                        </div>
+                      </div>
+
+                      {/* Year 4 */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.3rem' }}>
+                          <span style={{ color: 'var(--admin-text)' }}>4th Year Accounts</span>
+                          <span style={{ fontWeight: 'bold', color: '#00b4d8' }}>{year4Count} ({Math.round((year4Count/maxCount)*100) || 0}%)</span>
+                        </div>
+                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${(year4Count/maxCount)*100}%`, height: '100%', background: 'linear-gradient(90deg, #00b4d8, #00b0ff)', borderRadius: '4px' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Server & System Telemetry Diagnostics */}
+                  <div className="kbc-panel glass-card" style={{ padding: '1.5rem', background: 'rgba(12, 17, 34, 0.95)', border: '1px solid rgba(212, 175, 55, 0.2)', borderRadius: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ffd700' }}>System Telemetry</h3>
+                    <p className="panel-subtitle" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)', marginBottom: '1.2rem' }}>
+                      Diagnostic nominal health metrics
+                    </p>
+
+                    <div style={{ display: 'grid', gap: '0.8rem', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--admin-muted)' }}>Django API Engine:</span>
+                        <span style={{ color: '#4caf50', fontWeight: 'bold' }}>● ONLINE (v5.0)</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--admin-muted)' }}>Live Websocket Link:</span>
+                        <span style={{ color: '#4caf50', fontWeight: 'bold' }}>● NOMINAL</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--admin-muted)' }}>Mock Payment Module:</span>
+                        <span style={{ color: '#00b4d8', fontWeight: 'bold' }}>● READY</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '0.4rem' }}>
+                        <span style={{ color: 'var(--admin-muted)' }}>Database Schema:</span>
+                        <span style={{ color: '#ffd700', fontWeight: 'bold' }}>● STANDARDIZED</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </section>
-          </>
-        )}
+            </>
+          );
+        })()}
 
         {activeTab === 'Manage Quizzes' && (
           <section className="admin-overview-hero">
@@ -1727,6 +1966,23 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                                   }}
                                 >
                                   🎙️ Live Console
+                                </button>
+
+                                <button 
+                                  className="dash-chip-btn" 
+                                  onClick={() => handleEditClick(quiz)}
+                                  style={{
+                                    borderColor: 'rgba(212, 175, 55, 0.45)',
+                                    color: 'rgb(212, 175, 55)',
+                                    background: 'rgba(212, 175, 55, 0.03)',
+                                    fontSize: '0.8rem',
+                                    padding: '0.6rem',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    borderRadius: '6px'
+                                  }}
+                                >
+                                  ✏️ Edit Quiz
                                 </button>
                                 
                                 <label 
@@ -2742,6 +2998,49 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                       
                       <form onSubmit={handleEnrollManualSubmit} className="manual-enroll-form" style={{ display: 'grid', gap: '1.2rem' }}>
                         <div className="form-group">
+                          <label className="admin-form-label" style={{ color: 'rgb(var(--admin-yellow-rgb))', fontWeight: 'bold' }}>Quick Select Student Account</label>
+                          <select
+                            className="admin-form-input"
+                            style={{ border: '1px solid rgba(var(--admin-yellow-rgb), 0.35)', background: 'rgba(0,0,0,0.2)' }}
+                            value={allStudents.find(s => s.roll_number === enrollForm.rollNumber)?.id || ''}
+                            onChange={(e) => {
+                              const selectedId = e.target.value;
+                              if (!selectedId) {
+                                setEnrollForm({
+                                  ...enrollForm,
+                                  fullName: '',
+                                  email: '',
+                                  rollNumber: ''
+                                });
+                                return;
+                              }
+                              const student = allStudents.find(s => String(s.id) === String(selectedId));
+                              if (student) {
+                                setEnrollForm({
+                                  ...enrollForm,
+                                  fullName: student.full_name,
+                                  email: student.email,
+                                  rollNumber: student.roll_number
+                                });
+                              }
+                            }}
+                          >
+                            <option value="">-- Choose From Pre-registered Students --</option>
+                            {allStudents
+                              .filter(s => !enrolledStudents.some(es => es.roll_number === s.roll_number))
+                              .map(s => (
+                                <option key={s.id} value={s.id}>
+                                  {s.full_name} ({s.roll_number})
+                                </option>
+                              ))
+                            }
+                          </select>
+                          <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.75rem', color: 'var(--admin-muted)' }}>
+                            Choose an existing student to instantly pre-fill their profile credentials.
+                          </p>
+                        </div>
+
+                        <div className="form-group">
                           <label className="admin-form-label">Full Name</label>
                           <input
                             required
@@ -2800,56 +3099,6 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                       </form>
                     </div>
 
-                    {/* Bulk Enrollment Card */}
-                    <div className="students-panel glass-card bulk-enroll-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--admin-border)' }}>
-                      <h3 style={{ marginTop: 0, color: 'rgb(var(--admin-pink-rgb))' }}>Bulk Enroll Contestants</h3>
-                      <p className="panel-subtitle" style={{ fontSize: '0.85rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
-                        Upload student spreadsheet sheet (.csv or .xlsx)
-                      </p>
-                      
-                      <div className="bulk-actions-wrapper" style={{ marginBottom: '1.5rem' }}>
-                        <button
-                          type="button"
-                          className="dash-chip-btn template-download-btn"
-                          onClick={handleDownloadEnrollmentTemplate}
-                          disabled={enrollLoading}
-                          style={{ background: 'transparent', borderColor: 'var(--admin-border)', color: 'var(--admin-text)', padding: '0.8rem 1.2rem', fontSize: '0.85rem', borderRadius: '4px', cursor: 'pointer', width: '100%' }}
-                        >
-                          📥 DOWNLOAD STUDENT TEMPLATE (.XLSX)
-                        </button>
-                      </div>
-
-                      <form onSubmit={handleBulkEnrollSubmit} className="bulk-enroll-form" style={{ display: 'grid', gap: '1.2rem' }}>
-                        <div className="file-uploader-box" style={{ border: '2px dashed var(--admin-border)', padding: '2rem 1rem', borderRadius: '8px', textAlign: 'center', cursor: 'pointer', background: 'rgba(0,0,0,0.1)' }}>
-                          <input
-                            id="bulk-enroll-file-input"
-                            type="file"
-                            accept=".csv, .xlsx"
-                            className="file-input-hidden"
-                            style={{ display: 'none' }}
-                            onChange={(e) => setEnrollFile(e.target.files[0])}
-                          />
-                          <label htmlFor="bulk-enroll-file-input" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                            <span className="upload-icon" style={{ fontSize: '2.5rem' }}>📁</span>
-                            <span className="upload-text" style={{ fontSize: '1rem', fontWeight: 'bold' }}>
-                              {enrollFile ? enrollFile.name : 'Select student roster sheet...'}
-                            </span>
-                            <span className="upload-subtext" style={{ fontSize: '0.8rem', color: 'var(--admin-muted)' }}>
-                              Supports CSV / XLSX template formats
-                            </span>
-                          </label>
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="dash-chip-btn submit-bulk-btn"
-                          disabled={enrollLoading || !enrollFile}
-                          style={{ background: enrollFile ? 'rgb(var(--admin-pink-rgb))' : 'rgba(255,255,255,0.05)', color: enrollFile ? '#000' : 'rgba(255,255,255,0.3)', border: 'none', fontWeight: 'bold', padding: '1rem', cursor: enrollFile ? 'pointer' : 'not-allowed', borderRadius: '4px', width: '100%' }}
-                        >
-                          {enrollLoading ? 'PROCESSING EXCEL...' : 'BULK UPLOAD & PROVISION 🚀'}
-                        </button>
-                      </form>
-                    </div>
                   </div>
 
                   {/* Right Panel: Enrolled Students List Roster */}
@@ -3513,6 +3762,154 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                 <input required type="text" className="admin-form-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
               </div>
               <div style={{gridColumn: '1 / -1'}}>
+                <label className="admin-form-label" style={{ color: 'rgb(var(--admin-yellow-rgb))', fontWeight: 'bold' }}>Tournament Display Title (Intro)</label>
+                <input type="text" className="admin-form-input" style={{ borderColor: 'rgba(var(--admin-yellow-rgb), 0.35)', background: 'rgba(0,0,0,0.1)' }} value={formData.intro_title} onChange={e => setFormData({...formData, intro_title: e.target.value})} placeholder="e.g. Kaun Banega Business Tycoon" />
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--admin-muted)', marginBottom: '1rem' }}>
+                  Cinematic title shown on contestant/audience entry screens (e.g. "Kaun Banega Business Tycoon"). Splits at "Kaun Banega" automatically!
+                </p>
+              </div>
+
+              {/* Standard Target Academic Sector Selection */}
+              <div style={{gridColumn: '1 / -1', background: 'rgba(255, 255, 255, 0.02)', padding: '1.25rem', borderRadius: '8px', border: '1px solid var(--admin-border)', marginBottom: '0.5rem'}}>
+                <h4 style={{margin: '0 0 1rem 0', color: 'rgb(var(--admin-yellow-rgb))', fontSize: '0.95rem', fontWeight: 'bold'}}>Target Academic Sector</h4>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem'}}>
+                  <div>
+                    <label className="admin-form-label">Target School *</label>
+                    <select 
+                      required
+                      className="admin-form-input" 
+                      style={{ border: '1px solid rgba(212, 175, 55, 0.3)' }}
+                      value={formData.eligibility_school} 
+                      onChange={(e) => {
+                        const schoolId = e.target.value;
+                        let suggestedTitle = 'Kaun Banega Codepati';
+                        if (schoolId) {
+                          const schoolObj = schools.find(s => String(s.id) === String(schoolId));
+                          if (schoolObj) {
+                            const name = (schoolObj.school_name || '').toLowerCase();
+                            const code = (schoolObj.school_code || '').toLowerCase();
+                            if (name.includes('management') || name.includes('business') || name.includes('commerce') || code.includes('som') || code.includes('sob') || name.includes('sobus')) {
+                              suggestedTitle = 'Kaun Banega Business Tycoon';
+                            } else if (name.includes('pharmacy') || name.includes('medical') || name.includes('health') || name.includes('nursing') || code.includes('sop') || code.includes('somed') || name.includes('sophar')) {
+                              suggestedTitle = 'Kaun Banega Pharmacy Expert';
+                            } else if (name.includes('law') || name.includes('legal') || code.includes('sol')) {
+                              suggestedTitle = 'Kaun Banega Legal Eagle';
+                            }
+                          }
+                        }
+                        
+                        setFormData({
+                          ...formData,
+                          eligibility_school: schoolId,
+                          eligibility_programs: [],
+                          eligibility_branches: [],
+                          intro_title: (!formData.intro_title || formData.intro_title === 'Kaun Banega Codepati') ? suggestedTitle : formData.intro_title
+                        });
+                      }}
+                    >
+                      <option value="">-- Select Target School --</option>
+                      {schools.map(school => <option key={school.id} value={school.id}>{school.school_name} ({school.school_code})</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="admin-form-label">Target Program *</label>
+                    <select 
+                      required
+                      className="admin-form-input" 
+                      style={{ border: '1px solid rgba(212, 175, 55, 0.3)' }}
+                      value={formData.eligibility_programs?.[0] || ''} 
+                      onChange={e => setFormData({...formData, eligibility_programs: [e.target.value], eligibility_branches: []})} 
+                      disabled={!formData.eligibility_school}
+                    >
+                      <option value="">-- Select Target Program --</option>
+                      {programs.map(program => <option key={program.id} value={program.id}>{program.program_name} ({program.program_code})</option>)}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+                    <label className="admin-form-label">Target Branch(es) *</label>
+                    {!formData.eligibility_programs?.[0] ? (
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', fontStyle: 'italic', margin: '0.5rem 0 0 0' }}>
+                        Please select a Target Program first to view available branches.
+                      </p>
+                    ) : (
+                      <div 
+                        style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', 
+                          gap: '0.8rem', 
+                          marginTop: '0.5rem', 
+                          maxHeight: '160px', 
+                          overflowY: 'auto', 
+                          background: 'rgba(0,0,0,0.15)', 
+                          border: '1px solid rgba(212, 175, 55, 0.25)', 
+                          borderRadius: '8px', 
+                          padding: '0.8rem' 
+                        }}
+                      >
+                        {branches.map(branch => {
+                          const isSelected = formData.eligibility_branches?.includes(branch.id) || formData.eligibility_branches?.includes(String(branch.id));
+                          
+                          const handleToggleBranch = () => {
+                            let currentList = [...(formData.eligibility_branches || [])];
+                            const bId = String(branch.id);
+                            const bIdNum = branch.id;
+                            
+                            const indexStr = currentList.indexOf(bId);
+                            const indexNum = currentList.indexOf(bIdNum);
+                            
+                            if (indexStr > -1) {
+                              currentList.splice(indexStr, 1);
+                            } else if (indexNum > -1) {
+                              currentList.splice(indexNum, 1);
+                            } else {
+                              currentList.push(bIdNum);
+                            }
+                            
+                            setFormData({
+                              ...formData,
+                              eligibility_branches: currentList
+                            });
+                          };
+
+                          return (
+                            <label 
+                              key={branch.id} 
+                              style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.6rem', 
+                                background: isSelected ? 'rgba(212, 175, 55, 0.08)' : 'rgba(255,255,255,0.02)', 
+                                border: isSelected ? '1px solid var(--admin-yellow)' : '1px solid rgba(255,255,255,0.06)', 
+                                padding: '0.5rem 0.8rem', 
+                                borderRadius: '6px', 
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                userSelect: 'none'
+                              }}
+                            >
+                              <input 
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={handleToggleBranch}
+                                style={{ 
+                                  accentColor: 'var(--admin-yellow)',
+                                  width: '16px',
+                                  height: '16px',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                              <span style={{ fontSize: '0.88rem', color: isSelected ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: isSelected ? 'bold' : 'normal' }}>
+                                {branch.branch_name} ({branch.branch_code})
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div style={{gridColumn: '1 / -1'}}>
                 <label className="admin-form-label">Description</label>
                 <textarea className="admin-form-input admin-form-textarea" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
               </div>
@@ -3563,40 +3960,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                   <input type="checkbox" checked={formData.is_registration_open} onChange={e => setFormData({...formData, is_registration_open: e.target.checked})} style={{width: '18px', height: '18px'}} />
                   Registration Open
                 </label>
-                <label className="admin-checkbox-label" style={{marginLeft: 'auto'}}>
-                  <input type="checkbox" checked={formData.require_eligibility} onChange={e => setFormData({...formData, require_eligibility: e.target.checked})} style={{width: '18px', height: '18px'}} />
-                  Require Eligibility Criteria
-                </label>
               </div>
-
-              {/* Eligibility Filters */}
-              {formData.require_eligibility && (
-                <div style={{gridColumn: '1 / -1', background: 'var(--admin-surface-soft)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--admin-border)'}}>
-                  <h4 style={{marginTop: 0, marginBottom: '1rem', color: 'var(--admin-text)'}}>Eligibility Filters</h4>
-                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem'}}>
-                    <div>
-                      <label className="admin-form-label">School</label>
-                      <select className="admin-form-input" value={formData.eligibility_school} onChange={e => setFormData({...formData, eligibility_school: e.target.value, eligibility_programs: [], eligibility_branches: []})}>
-                        <option value="">Any School</option>
-                        {schools.map(school => <option key={school.id} value={school.id}>{school.school_code}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="admin-form-label">Programmes (Multiple)</label>
-                      <select multiple className="admin-form-input" value={formData.eligibility_programs} onChange={e => setFormData({...formData, eligibility_programs: Array.from(e.target.selectedOptions, option => option.value)})} disabled={!formData.eligibility_school}>
-                        {programs.map(program => <option key={program.id} value={program.id}>{program.program_code}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="admin-form-label">Branches (Multiple)</label>
-                      <select multiple className="admin-form-input" value={formData.eligibility_branches} onChange={e => setFormData({...formData, eligibility_branches: Array.from(e.target.selectedOptions, option => option.value)})} disabled={formData.eligibility_programs.length === 0}>
-                        {branches.map(branch => <option key={branch.id} value={branch.id}>{branch.branch_code}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <p style={{margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: 'var(--admin-muted)'}}>Hold Ctrl (Windows) or Command (Mac) to select multiple options.</p>
-                </div>
-              )}
               
               <div style={{gridColumn: '1 / -1', marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem'}}>
                 {editingQuizId ? (

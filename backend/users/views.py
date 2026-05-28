@@ -263,7 +263,7 @@ class AdminStudentBulkUploadView(APIView):
                 continue
 
             full_name = str(row[0] or "").strip()
-            roll_number = str(row[1] or "").strip()
+            roll_number = str(row[1] or "").strip().upper()
             college_id = roll_number  # Consolidate college ID and roll number
             email = str(row[2] or "").strip().lower()
             school_code = str(row[3] or "").strip()

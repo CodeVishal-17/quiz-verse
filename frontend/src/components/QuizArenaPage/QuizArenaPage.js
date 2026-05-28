@@ -6,7 +6,6 @@ import {
   submitFFFAnswer,
   getHotseatQuestion,
   submitHotseatAnswer,
-  triggerHotseatLifeline,
   hotseatWalkAway,
   startQuizAttempt,
   getNextQuestion,
@@ -85,6 +84,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
   const [prelimFeedback, setPrelimFeedback] = useState(null);
   
   const [showHotseatIntro, setShowHotseatIntro] = useState(false);
+  const [showLocalTestIntro, setShowLocalTestIntro] = useState(false);
   const [poweringOn, setPoweringOn] = useState(false);
   const [hasSeenHotseatIntro, setHasSeenHotseatIntro] = useState(false);
 
@@ -1514,12 +1514,17 @@ function QuizArenaInner({ showBeautifulPopup }) {
               <h3>BATCH 1 (Contestants 1-10)</h3>
               <p className="helper-text">Competes in FFF Batch 1</p>
               <ul>
-                {b1.length === 0 ? <li className="empty-li">Locking players...</li> : b1.map((pId, idx) => (
-                  <li key={pId} className={session?.user?.id === pId ? 'user-highlight' : ''}>
-                    <span>#{idx+1} Player ID: {pId}</span>
-                    {session?.user?.id === pId && <span className="you-pill">YOU</span>}
-                  </li>
-                ))}
+                {b1.length === 0 ? <li className="empty-li">Locking players...</li> : b1.map((player, idx) => {
+                  const pId = player?.id;
+                  const pName = player?.name || `Player ID: ${pId}`;
+                  const isYou = session?.user?.id === pId;
+                  return (
+                    <li key={pId || idx} className={isYou ? 'user-highlight' : ''}>
+                      <span>#{idx+1} {pName}</span>
+                      {isYou && <span className="you-pill">YOU</span>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -1527,12 +1532,17 @@ function QuizArenaInner({ showBeautifulPopup }) {
               <h3>BATCH 2 (Contestants 11-20)</h3>
               <p className="helper-text">Competes in FFF Batch 2</p>
               <ul>
-                {b2.length === 0 ? <li className="empty-li">Locking players...</li> : b2.map((pId, idx) => (
-                  <li key={pId} className={session?.user?.id === pId ? 'user-highlight' : ''}>
-                    <span>#{idx+11} Player ID: {pId}</span>
-                    {session?.user?.id === pId && <span className="you-pill">YOU</span>}
-                  </li>
-                ))}
+                {b2.length === 0 ? <li className="empty-li">Locking players...</li> : b2.map((player, idx) => {
+                  const pId = player?.id;
+                  const pName = player?.name || `Player ID: ${pId}`;
+                  const isYou = session?.user?.id === pId;
+                  return (
+                    <li key={pId || idx} className={isYou ? 'user-highlight' : ''}>
+                      <span>#{idx+11} {pName}</span>
+                      {isYou && <span className="you-pill">YOU</span>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -1540,12 +1550,17 @@ function QuizArenaInner({ showBeautifulPopup }) {
               <h3>BATCH 3 (Contestants 21-30)</h3>
               <p className="helper-text">Competes in FFF Batch 3</p>
               <ul>
-                {b3.length === 0 ? <li className="empty-li">Locking players...</li> : b3.map((pId, idx) => (
-                  <li key={pId} className={session?.user?.id === pId ? 'user-highlight' : ''}>
-                    <span>#{idx+21} Player ID: {pId}</span>
-                    {session?.user?.id === pId && <span className="you-pill">YOU</span>}
-                  </li>
-                ))}
+                {b3.length === 0 ? <li className="empty-li">Locking players...</li> : b3.map((player, idx) => {
+                  const pId = player?.id;
+                  const pName = player?.name || `Player ID: ${pId}`;
+                  const isYou = session?.user?.id === pId;
+                  return (
+                    <li key={pId || idx} className={isYou ? 'user-highlight' : ''}>
+                      <span>#{idx+21} {pName}</span>
+                      {isYou && <span className="you-pill">YOU</span>}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>
@@ -1851,6 +1866,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
           setHasSeenHotseatIntro(true);
         }} 
         contestantName={introContestantName} 
+        introTitle={liveState?.intro_title}
       />
     ) : null;
 
@@ -1862,12 +1878,63 @@ function QuizArenaInner({ showBeautifulPopup }) {
       const currentContestantScore = hostHotseatData?.score || 0;
       const progressLevel = hostHotseatData?.current_index || 0;
 
+      if (hostHotseatData?.completed) {
+        const hsStatus = hostHotseatData.status;
+        const hsScore = hostHotseatData.score;
+        let endReason = "Incorrect Answer! Dropped to the nearest safety checkpoint.";
+        if (hsStatus === 'walked_away') {
+          endReason = "Contestant Walked Away! Safely secured their accumulated points.";
+        } else if (hsStatus === 'completed') {
+          endReason = "Amazing! The contestant has successfully conquered the entire question ladder!";
+        } else if (hsStatus === 'timeout') {
+          endReason = "Time Out! Contestant ran out of time.";
+        }
+
+        return (
+          <main className={`arena-page kbc-broadcast ${isLight ? 'theme-light' : 'theme-dark'} ${poweringOn ? 'arena-power-on' : ''}`}>
+            <div className="arena-background">
+              <KbcStageFx intensity="lite" />
+              <div className="arena-orb orb-pink" />
+              <div className="arena-orb orb-cyan" />
+            </div>
+            {renderTopbar(`🎙️ LIVE HOTSEAT SHOW: CONCLUDED`, "HOST CONSOLE", false, 0, hsScore)}
+            <div className="arena-center" style={{ minHeight: 'calc(100vh - 120px)' }}>
+              <div className="arena-completed-panel glass-card text-center glow-pink" style={{ maxWidth: '600px', width: '90%', padding: '4rem 2rem' }}>
+                <span className="arena-status" style={{ background: '#db2777', color: '#fff', padding: '0.3rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }}>HOTSEAT CONCLUDED</span>
+                <h2 className="golden-glow" style={{ fontSize: '2.5rem', margin: '1rem 0 1.5rem 0', fontWeight: '900' }}>{activeContestantName}'s GAME ENDED</h2>
+                <div className="arena-score-display" style={{ margin: '2rem 0' }}>
+                  <span className="score-kicker" style={{ display: 'block', fontSize: '1rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CONTESTANT FINAL SCORE</span>
+                  <strong style={{ fontSize: '4.5rem', color: '#ffd700', textShadow: '0 0 15px rgba(255,215,0,0.5)' }}>{hsScore} pts</strong>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Reason for Ending</span>
+                  <p style={{ margin: 0, fontSize: '1.15rem', color: '#fff', fontWeight: 'bold' }}>{endReason}</p>
+                </div>
+                <p style={{ color: '#94a3b8' }}>Please advance the event phase in the Admin Dashboard to proceed to the next round.</p>
+              </div>
+            </div>
+          </main>
+        );
+      }
+
       const correctChoice = hostHotseatData?.question?.choices?.find(c => c.is_correct);
       const correctChoiceIndicator = correctChoice ? ['A','B','C','D'][hostHotseatData.question.choices.indexOf(correctChoice)] : '';
 
       return (
         <main className={`arena-page kbc-broadcast ${isLight ? 'theme-light' : 'theme-dark'} ${poweringOn ? 'arena-power-on' : ''}`}>
-          {introComponent}
+          {showLocalTestIntro ? (
+            <HotseatIntro 
+              onTransitionStart={() => {
+                setPoweringOn(true);
+                setTimeout(() => setPoweringOn(false), 4000);
+              }}
+              onComplete={() => {
+                setShowLocalTestIntro(false);
+              }}
+              contestantName={activeContestantName || "TEST CONTENDER"}
+              introTitle={liveState?.intro_title}
+            />
+          ) : introComponent}
           <div className="arena-background">
             <KbcStageFx intensity="lite" />
             <div className="arena-orb orb-pink" />
@@ -1981,6 +2048,25 @@ function QuizArenaInner({ showBeautifulPopup }) {
                       >
                         {approvingLifeline ? 'APPROVING...' : '✅ APPROVE'}
                       </button>
+
+                      <button 
+                        onClick={handleRejectLifeline} 
+                        disabled={rejectingLifeline}
+                        style={{
+                          background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+                          color: '#fff',
+                          fontWeight: '900',
+                          padding: '0.5rem 2.2rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: '0 3px 10px rgba(244, 67, 54, 0.3)',
+                          letterSpacing: '0.05em',
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        {rejectingLifeline ? 'REJECTING...' : '❌ REJECT'}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -2000,22 +2086,26 @@ function QuizArenaInner({ showBeautifulPopup }) {
                     <div className="kbc-choices-grid">
                       {hostHotseatData.question.choices.map((choice, i) => {
                         const isPreselected = hostHotseatData.preselected_choice_id === choice.id;
+                        const hostEliminatedIds = hostHotseatData?.approved_lifeline_data?.eliminated_choice_ids || [];
+                        const isChoiceEliminated = hostEliminatedIds.includes(choice.id);
 
                         return (
                           <div 
                             key={choice.id}
-                            className={`arena-choice-btn kbc-choice disabled ${isPreselected ? 'selected' : ''}`}
+                            className={`arena-choice-btn kbc-choice disabled ${isPreselected ? 'selected' : ''} ${isChoiceEliminated ? 'eliminated' : ''}`}
                             style={{
                               border: isPreselected ? '2px solid #ff9800' : '1px solid var(--admin-border)',
                               background: isPreselected ? 'rgba(255, 152, 0, 0.1)' : 'rgba(0,0,0,0.2)',
                               display: 'flex',
                               justifyContent: 'space-between',
-                              alignItems: 'center'
+                              alignItems: 'center',
+                              opacity: isChoiceEliminated ? 0.25 : 1,
+                              pointerEvents: isChoiceEliminated ? 'none' : 'auto'
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <div className="choice-indicator">{['A','B','C','D'][i]}</div>
-                              <div className="choice-text">{choice.text}</div>
+                              <div className="choice-text">{isChoiceEliminated ? "" : choice.text}</div>
                             </div>
                             
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -2053,26 +2143,51 @@ function QuizArenaInner({ showBeautifulPopup }) {
 
                       <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
                         {/* Play/Stop Intro Button */}
+                        {(!hostHotseatData?.intro_played || hostHotseatData?.show_intro) && (
+                          <button
+                            onClick={hostHotseatData.show_intro ? handleHostCompleteIntro : handleHostTriggerIntro}
+                            style={{
+                              background: hostHotseatData.show_intro 
+                                ? 'linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%)'
+                                : 'linear-gradient(135deg, #00bfff 0%, #0080ff 100%)',
+                              color: '#fff',
+                              border: 'none',
+                              fontWeight: '900',
+                              padding: '0.6rem 1.5rem',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              boxShadow: hostHotseatData.show_intro 
+                                ? '0 2px 10px rgba(255, 77, 77, 0.25)' 
+                                : '0 2px 10px rgba(0, 191, 255, 0.25)',
+                              textTransform: 'uppercase',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            {hostHotseatData.show_intro ? '⏹️ STOP INTRO' : '🎥 PLAY INTRO'}
+                          </button>
+                        )}
+
+                        {/* Local Private Test Intro Button */}
                         <button
-                          onClick={hostHotseatData.show_intro ? handleHostCompleteIntro : handleHostTriggerIntro}
+                          onClick={() => setShowLocalTestIntro(prev => !prev)}
                           style={{
-                            background: hostHotseatData.show_intro 
-                              ? 'linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%)'
-                              : 'linear-gradient(135deg, #00bfff 0%, #0080ff 100%)',
+                            background: showLocalTestIntro 
+                              ? 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)'
+                              : 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
                             color: '#fff',
                             border: 'none',
                             fontWeight: '900',
                             padding: '0.6rem 1.5rem',
                             borderRadius: '6px',
                             cursor: 'pointer',
-                            boxShadow: hostHotseatData.show_intro 
-                              ? '0 2px 10px rgba(255, 77, 77, 0.25)' 
-                              : '0 2px 10px rgba(0, 191, 255, 0.25)',
+                            boxShadow: showLocalTestIntro 
+                              ? '0 2px 10px rgba(244, 63, 94, 0.35)' 
+                              : '0 2px 10px rgba(139, 92, 246, 0.35)',
                             textTransform: 'uppercase',
                             fontSize: '0.85rem'
                           }}
                         >
-                          {hostHotseatData.show_intro ? '⏹️ STOP INTRO' : '🎥 PLAY INTRO'}
+                          {showLocalTestIntro ? '⏹️ STOP TEST INTRO' : '🔬 TEST INTRO (LOCAL)'}
                         </button>
 
                         {/* Next Question Push Button */}
@@ -2242,18 +2357,30 @@ function QuizArenaInner({ showBeautifulPopup }) {
     // View if player is the actual Hotseat Contestant
     if (liveState.student_role === 'hotseat_player') {
       if (hotseatCompleted) {
+        let endReason = "Incorrect Answer! Dropped to the nearest safety checkpoint.";
+        if (hotseatStatus === 'walked_away') {
+          endReason = "You chose to Walk Away! Safely secured your accumulated points.";
+        } else if (hotseatStatus === 'completed') {
+          endReason = "Amazing! You have successfully conquered the entire question ladder!";
+        } else if (hotseatStatus === 'timeout') {
+          endReason = "Time Out! You ran out of time.";
+        }
+
         return (
           <main className={`arena-page kbc-broadcast ${isLight ? 'theme-light' : 'theme-dark'} ${poweringOn ? 'arena-power-on' : ''}`}>
             <div className="arena-center">
-              <div className="arena-completed-panel glass-card text-center glow-blue">
-                <span className="arena-status">Hotseat Finished</span>
-                <h2 className="golden-glow">Round Concluded</h2>
-                <div className="arena-score-display">
-                  <span className="score-kicker">Final Score</span>
-                  <strong>{hotseatScore} pts</strong>
+              <div className="arena-completed-panel glass-card text-center glow-blue" style={{ maxWidth: '600px', width: '90%', padding: '4rem 2rem' }}>
+                <span className="arena-status" style={{ background: '#00bfff', color: '#fff', padding: '0.3rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }}>ROUND CONCLUDED</span>
+                <h2 className="golden-glow" style={{ fontSize: '2.5rem', margin: '1rem 0 1.5rem 0', fontWeight: '900' }}>GAME OVER</h2>
+                <div className="arena-score-display" style={{ margin: '2rem 0' }}>
+                  <span className="score-kicker" style={{ display: 'block', fontSize: '1rem', color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>YOUR FINAL SCORE</span>
+                  <strong style={{ fontSize: '4.5rem', color: '#ffd700', textShadow: '0 0 15px rgba(255,215,0,0.5)' }}>{hotseatScore} pts</strong>
                 </div>
-                <p>Status: {hotseatStatus === 'walked_away' ? 'Walked Away Safely' : hotseatStatus === 'failed' ? 'Incorrect Answer (Checkpoint Drop)' : 'Completed'}</p>
-                <p>Waiting for the admin to transition to the next event stage...</p>
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Reason for Ending</span>
+                  <p style={{ margin: 0, fontSize: '1.15rem', color: '#fff', fontWeight: 'bold' }}>{endReason}</p>
+                </div>
+                <p style={{ color: '#94a3b8' }}>Waiting for the host to transition to the next event stage...</p>
               </div>
             </div>
           </main>
