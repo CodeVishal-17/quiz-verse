@@ -50,8 +50,16 @@ const SYMBOLS = {
 
 function AdminDashboardInner({ showBeautifulPopup }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('quizverse-theme') || 'dark');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('quizverse-admin-sidebar-collapsed') === 'true';
+  });
   const [selectedPromoteStudentId, setSelectedPromoteStudentId] = useState('');
   const [coreOffset, setCoreOffset] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    localStorage.setItem('quizverse-admin-sidebar-collapsed', isSidebarCollapsed);
+  }, [isSidebarCollapsed]);
+
   const [quizzes, setQuizzes] = useState([]);
   const [adminStats, setAdminStats] = useState({
     total_students: 0,
@@ -1444,7 +1452,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
   return (
     <main
-      className="admin-dashboard-page kbc-broadcast theme-dark"
+      className={`admin-dashboard-page kbc-broadcast theme-dark ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}
       style={{ '--core-x': `${coreOffset.x}px`, '--core-y': `${coreOffset.y}px` }}
       onPointerMove={handlePointerMove}
     >
@@ -1456,11 +1464,47 @@ function AdminDashboardInner({ showBeautifulPopup }) {
         <div className="admin-particles" />
       </div>
 
-      <aside className="admin-sidebar" aria-label="Dashboard navigation">
-        <Link className="admin-brand" to="/">
-          <span>{SYMBOLS.triangle}</span>
-          QuizVerse Admin
-        </Link>
+      <aside className={`admin-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} aria-label="Dashboard navigation">
+        <div className="admin-sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarCollapsed ? 'center' : 'space-between', width: '100%', gap: '0.5rem', minHeight: '56px' }}>
+          <Link className="admin-brand" to="/" style={{ gap: isSidebarCollapsed ? '0' : '0.85rem', display: 'flex', alignItems: 'center', minHeight: 'auto', padding: 0 }}>
+            <span>{SYMBOLS.triangle}</span>
+            {!isSidebarCollapsed && <span className="admin-brand-text" style={{ whiteSpace: 'nowrap' }}>QuizVerse Admin</span>}
+          </Link>
+          <button 
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="admin-sidebar-toggle"
+            type="button"
+            aria-label="Toggle Sidebar"
+            style={{
+              background: 'rgba(212, 175, 55, 0.05)',
+              border: '1px solid rgba(212, 175, 55, 0.15)',
+              color: 'var(--admin-muted)',
+              cursor: 'pointer',
+              fontSize: '1rem',
+              width: '28px',
+              height: '28px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '4px',
+              transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+              padding: 0,
+              flexShrink: 0
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.color = 'var(--admin-text)';
+              e.currentTarget.style.background = 'rgba(212, 175, 55, 0.15)';
+              e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.color = 'var(--admin-muted)';
+              e.currentTarget.style.background = 'rgba(212, 175, 55, 0.05)';
+              e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.15)';
+            }}
+          >
+            {isSidebarCollapsed ? '›' : '‹'}
+          </button>
+        </div>
 
         <nav className="admin-sidebar-nav">
           {navigation.map((item) => (
@@ -1469,25 +1513,35 @@ function AdminDashboardInner({ showBeautifulPopup }) {
               key={item.label} 
               type="button"
               onClick={() => setActiveTab(item.label)}
+              title={isSidebarCollapsed ? item.label : ''}
+              style={{
+                padding: isSidebarCollapsed ? '0' : '0 1rem',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                gap: isSidebarCollapsed ? '0' : '0.9rem'
+              }}
             >
               <span className="admin-sidebar-icon">{item.symbol}</span>
-              <span className="admin-sidebar-label">{item.label}</span>
-              <span className="admin-sidebar-hover-symbol">{item.symbol}</span>
+              {!isSidebarCollapsed && <span className="admin-sidebar-label">{item.label}</span>}
+              {!isSidebarCollapsed && <span className="admin-sidebar-hover-symbol">{item.symbol}</span>}
             </button>
           ))}
         </nav>
 
-        <div className="admin-sidebar-footer" style={{ marginTop: 'auto', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', width: '100%' }}>
+        <div className="admin-sidebar-footer" style={{ marginTop: 'auto', borderTop: '1px solid var(--admin-border)', paddingTop: '1.5rem', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <Link 
             to="/login" 
             className="admin-sidebar-item" 
+            title={isSidebarCollapsed ? 'LOGOUT' : ''}
             style={{ 
               textDecoration: 'none', 
               border: '1px solid rgba(255, 107, 107, 0.25)', 
               background: 'rgba(255, 107, 107, 0.03)',
               borderRadius: '8px',
-              padding: '0 1rem',
+              padding: isSidebarCollapsed ? '0' : '0 1rem',
+              justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+              gap: isSidebarCollapsed ? '0' : '0.9rem',
               minHeight: '50px',
+              width: isSidebarCollapsed ? '50px' : '100%',
               display: 'flex',
               alignItems: 'center',
               transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
@@ -1506,8 +1560,8 @@ function AdminDashboardInner({ showBeautifulPopup }) {
             }}
           >
             <span className="admin-sidebar-icon" style={{ color: '#ff6b6b' }}>{SYMBOLS.exit}</span>
-            <span className="admin-sidebar-label" style={{ color: '#ff6b6b', fontWeight: '900', letterSpacing: '0.07em' }}>LOGOUT</span>
-            <span className="admin-sidebar-hover-symbol" style={{ color: '#ff6b6b' }}>{SYMBOLS.exit}</span>
+            {!isSidebarCollapsed && <span className="admin-sidebar-label" style={{ color: '#ff6b6b', fontWeight: '900', letterSpacing: '0.07em' }}>LOGOUT</span>}
+            {!isSidebarCollapsed && <span className="admin-sidebar-hover-symbol" style={{ color: '#ff6b6b' }}>{SYMBOLS.exit}</span>}
           </Link>
         </div>
       </aside>

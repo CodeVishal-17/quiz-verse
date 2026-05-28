@@ -23,7 +23,7 @@
     radial-gradient(circle at 10% 70%, rgba(var(--admin-mint-rgb), 0.1), transparent 35%),
     linear-gradient(180deg, var(--admin-bg) 0%, var(--admin-bg-deep) 100%);
   color: var(--admin-text);
-  transition: background 700ms ease, color 700ms ease;
+  transition: background 700ms ease, color 700ms ease, grid-template-columns 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   font-family: var(--font-cinematic);
 }
 
@@ -2536,4 +2536,53 @@
 .mini-table .kbc-table td {
   padding: 0.5rem 0.8rem;
   font-size: 0.82rem;
+}
+
+/* ========================================== */
+/* Collapsible Sidebar Styles                 */
+/* ========================================== */
+
+.admin-dashboard-page.sidebar-collapsed {
+  grid-template-columns: 80px minmax(0, 1fr) !important;
+}
+
+.admin-sidebar {
+  transition: background 700ms ease, border-color 700ms ease, width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), padding 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), gap 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  width: 280px;
+}
+
+.admin-sidebar.collapsed {
+  width: 80px !important;
+  padding: 1.35rem 0.5rem !important;
+  align-items: center !important;
+  gap: 1.5rem !important;
+}
+
+.admin-sidebar.collapsed .admin-brand {
+  gap: 0 !important;
+  justify-content: center !important;
+}
+
+.admin-sidebar.collapsed .admin-sidebar-item {
+  justify-content: center !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  width: 50px !important;
+  height: 50px !important;
+  margin: 0 auto !important;
+}
+
+.admin-sidebar.collapsed .admin-sidebar-nav {
+  justify-items: center !important;
+  width: 100% !important;
+}
+
+.admin-sidebar-toggle {
+  opacity: 0.7;
+}
+
+.admin-sidebar-toggle:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.25);
 }
