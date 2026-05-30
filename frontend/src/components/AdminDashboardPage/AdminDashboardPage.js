@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getAuthSession, saveAuthSession, getSchools, getProgramsBySchool, getBranchesByProgram, updateUserCredentials, getAdminStudents, createAdminStudent, deleteAdminStudent, bulkUploadStudents, downloadStudentTemplate, updateAdminStudent } from '../../api/auth';
+import { getAuthSession, saveAuthSession, getSchools, getProgramsBySchool, getBranchesByProgram, updateUserCredentials, getAdminStudents, createAdminStudent, deleteAdminStudent, bulkUploadStudents, downloadStudentTemplate, updateAdminStudent, getSchoolAdmins, createSchoolAdmin, updateSchoolAdmin, deleteSchoolAdmin } from '../../api/auth';
 import {
   getAdminQuizzes,
   updateAdminQuiz,
@@ -49,6 +49,7 @@ const SYMBOLS = {
 };
 
 function AdminDashboardInner({ showBeautifulPopup }) {
+  const session = getAuthSession();
   const [theme, setTheme] = useState(() => localStorage.getItem('quizverse-theme') || 'dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     return localStorage.getItem('quizverse-admin-sidebar-collapsed') === 'true';
@@ -82,12 +83,17 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     require_eligibility: false,
     eligibility_school: '',
     eligibility_programs: [],
-    eligibility_branches: []
+    eligibility_branches: [],
+    host: ''
   });
   const [submitLoading, setSubmitLoading] = useState(false);
   const [schools, setSchools] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [adminsList, setAdminsList] = useState([]);
+  const [adminForm, setAdminForm] = useState({ full_name: '', email: '', college_id: '', password: '', school_id: '', is_super_admin: false });
+  const [editingAdminId, setEditingAdminId] = useState(null);
+  const [adminSubmitLoading, setAdminSubmitLoading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [selectedManageQuiz, setSelectedManageQuiz] = useState(null);
   const [showSwitchCategoryPanel, setShowSwitchCategoryPanel] = useState(false);
@@ -122,6 +128,13 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   const [addStudentSchools, setAddStudentSchools] = useState([]);
   const [addStudentPrograms, setAddStudentPrograms] = useState([]);
   const [addStudentBranches, setAddStudentBranches] = useState([]);
+
+  // Student Accounts Filtering States
+  const [filterSchoolId, setFilterSchoolId] = useState('');
+  const [filterProgramId, setFilterProgramId] = useState('');
+  const [filterBranchId, setFilterBranchId] = useState('');
+  const [filterProgramsList, setFilterProgramsList] = useState([]);
+  const [filterBranchesList, setFilterBranchesList] = useState([]);
 
   // Student Accounts Editing States
   const [editingStudent, setEditingStudent] = useState(null);
@@ -231,13 +244,58 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       .catch(() => setAddStudentBranches([]));
   }, [addStudentForm.program]);
 
+  // Initialize school filters and school presets for school admins
+  useEffect(() => {
+    if (activeTab === 'Student Accounts' && session?.user) {
+      if (!session.user.is_super_admin && session.user.school_id) {
+        const schId = session.user.school_id.toString();
+        setFilterSchoolId(schId);
+        setAddStudentForm(prev => ({ ...prev, school: schId }));
+      }
+    }
+  }, [activeTab, session?.user]);
+
+  // Load programs when filterSchoolId changes
+  useEffect(() => {
+    if (!filterSchoolId) {
+      setFilterProgramsList([]);
+      setFilterProgramId('');
+      setFilterBranchId('');
+      setFilterBranchesList([]);
+      return;
+    }
+    getProgramsBySchool(filterSchoolId)
+      .then(data => setFilterProgramsList(Array.isArray(data) ? data : []))
+      .catch(() => setFilterProgramsList([]));
+    setFilterProgramId('');
+    setFilterBranchId('');
+    setFilterBranchesList([]);
+  }, [filterSchoolId]);
+
+  // Load branches when filterProgramId changes
+  useEffect(() => {
+    if (!filterProgramId) {
+      setFilterBranchesList([]);
+      setFilterBranchId('');
+      return;
+    }
+    getBranchesByProgram(filterProgramId)
+      .then(data => setFilterBranchesList(Array.isArray(data) ? data : []))
+      .catch(() => setFilterBranchesList([]));
+    setFilterBranchId('');
+  }, [filterProgramId]);
+
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     try {
       setAddStudentLoading(true);
       await createAdminStudent(session?.token, { ...addStudentForm, college_id: addStudentForm.roll_number });
       showBeautifulPopup('Success', 'Student account created successfully with default password (itmu@123).', 'success');
-      setAddStudentForm({ full_name: '', roll_number: '', college_id: '', email: '', school: '', program: '', branch: '', year: '1' });
+      setAddStudentForm({
+        full_name: '', roll_number: '', college_id: '', email: '',
+        school: !session?.user?.is_super_admin && session?.user?.school_id ? session.user.school_id.toString() : '',
+        program: '', branch: '', year: '1'
+      });
       setShowAddStudentForm(false);
       fetchAllStudents();
     } catch (err) {
@@ -352,7 +410,6 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     }
   }, [newQuestionData.question_type]);
 
-  const session = getAuthSession();
   const isLight = theme === 'light';
   const admin = {
     name: session?.student?.full_name || 'Administrator',
@@ -362,6 +419,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   const navigation = [
     { label: 'Overview', symbol: '📊' },
     { label: 'Manage Quizzes', symbol: '🗂️' },
+    ...(session?.user?.is_super_admin ? [{ label: 'Manage School Admins', symbol: '🔑' }] : []),
     { label: 'Live KBC Controller', symbol: '🎮' },
     { label: 'Quiz Enrollment', symbol: '🎟️' },
     { label: 'Student Accounts', symbol: '👥' },
@@ -626,10 +684,10 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     { value: 'regular', label: 'Preliminary Quiz' },
     { value: 'batch_selection', label: 'Batch Configuration' },
     { value: 'fff_batch_1', label: 'FFF — Batch 1' },
-    { value: 'fff_batch_2', label: 'FFF — Batch 2' },
-    { value: 'fff_batch_3', label: 'FFF — Batch 3' },
     { value: 'hotseat_batch_1', label: 'Hotseat — Batch 1' },
+    { value: 'fff_batch_2', label: 'FFF — Batch 2' },
     { value: 'hotseat_batch_2', label: 'Hotseat — Batch 2' },
+    { value: 'fff_batch_3', label: 'FFF — Batch 3' },
     { value: 'hotseat_batch_3', label: 'Hotseat — Batch 3' },
     { value: 'completed', label: 'Event Completed' }
   ];
@@ -652,21 +710,21 @@ function AdminDashboardInner({ showBeautifulPopup }) {
   };
 
   const KBC_LADDER = [
-    { q: 15, val: '150 pts', jackpot: true },
-    { q: 14, val: '140 pts' },
-    { q: 13, val: '130 pts' },
-    { q: 12, val: '120 pts' },
-    { q: 11, val: '110 pts' },
-    { q: 10, val: '100 pts', checkpoint: true },
-    { q: 9, val: '90 pts' },
-    { q: 8, val: '80 pts' },
-    { q: 7, val: '70 pts' },
-    { q: 6, val: '60 pts' },
-    { q: 5, val: '50 pts', checkpoint: true },
-    { q: 4, val: '40 pts' },
-    { q: 3, val: '30 pts' },
-    { q: 2, val: '20 pts' },
-    { q: 1, val: '10 pts' }
+    { q: 15, val: '1,00,00,000 pts', jackpot: true },
+    { q: 14, val: '50,00,000 pts' },
+    { q: 13, val: '25,00,000 pts' },
+    { q: 12, val: '12,50,000 pts' },
+    { q: 11, val: '6,40,000 pts' },
+    { q: 10, val: '3,20,000 pts', checkpoint: true },
+    { q: 9, val: '1,60,000 pts' },
+    { q: 8, val: '80,000 pts' },
+    { q: 7, val: '40,000 pts' },
+    { q: 6, val: '20,000 pts' },
+    { q: 5, val: '10,000 pts', checkpoint: true },
+    { q: 4, val: '5,000 pts' },
+    { q: 3, val: '3,000 pts' },
+    { q: 2, val: '2,000 pts' },
+    { q: 1, val: '1,000 pts' }
   ];
 
   const fetchKbcControllerData = async (quizId) => {
@@ -903,12 +961,14 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     try {
       setLoading(true);
       if (session?.token) {
-        const [qData, sData] = await Promise.all([
+        const [qData, sData, studentsData] = await Promise.all([
           getAdminQuizzes(session.token),
-          getAdminStats(session.token)
+          getAdminStats(session.token),
+          getAdminStudents(session.token).catch(() => [])
         ]);
         setQuizzes(qData);
         setAdminStats(sData);
+        setAllStudents(Array.isArray(studentsData) ? studentsData : []);
       }
     } catch (err) {
       console.error(err);
@@ -921,6 +981,14 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     fetchDashboardData();
     getSchools().then(data => setSchools(Array.isArray(data) ? data : [])).catch(() => setSchools([]));
   }, []);
+
+  useEffect(() => {
+    if (session?.token) {
+      getSchoolAdmins(session.token)
+        .then(data => setAdminsList(Array.isArray(data) ? data : []))
+        .catch(() => setAdminsList([]));
+    }
+  }, [session?.token]);
 
   useEffect(() => {
     if (!formData.eligibility_school) {
@@ -966,9 +1034,10 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       registration_fee: '0', visible_to_students: false, is_registration_open: false,
       intro_title: 'Kaun Banega Codepati',
       require_eligibility: false,
-      eligibility_school: '',
+      eligibility_school: session?.user?.school_id || '',
       eligibility_programs: [],
-      eligibility_branches: []
+      eligibility_branches: [],
+      host: ''
     });
     setShowModal(true);
   };
@@ -1008,9 +1077,10 @@ function AdminDashboardInner({ showBeautifulPopup }) {
       is_registration_open: quiz.is_registration_open || false,
       intro_title: quiz.intro_title || 'Kaun Banega Codepati',
       require_eligibility: !!(quiz.allowed_schools?.length || quiz.allowed_programs?.length || quiz.allowed_branches?.length),
-      eligibility_school: quiz.allowed_schools?.[0] || '',
+      eligibility_school: quiz.allowed_schools?.[0] || session?.user?.school_id || '',
       eligibility_programs: quiz.allowed_programs || [],
-      eligibility_branches: quiz.allowed_branches || []
+      eligibility_branches: quiz.allowed_branches || [],
+      host: quiz.host || ''
     });
     
     setShowModal(true);
@@ -1036,6 +1106,62 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     );
   };
 
+  const handleAdminSubmit = async (e) => {
+    e.preventDefault();
+    if (!adminForm.full_name || !adminForm.email || !adminForm.college_id || (!editingAdminId && !adminForm.password)) {
+      alert("Name, email, college ID, and password are required.");
+      return;
+    }
+    try {
+      setAdminSubmitLoading(true);
+      if (editingAdminId) {
+        await updateSchoolAdmin(session?.token, editingAdminId, adminForm);
+        alert("Admin updated successfully.");
+      } else {
+        await createSchoolAdmin(session?.token, adminForm);
+        alert("Admin created successfully.");
+      }
+      const data = await getSchoolAdmins(session?.token);
+      setAdminsList(Array.isArray(data) ? data : []);
+      setAdminForm({ full_name: '', email: '', college_id: '', password: '', school_id: '', is_super_admin: false });
+      setEditingAdminId(null);
+    } catch (err) {
+      alert(err.data?.detail || err.message || "Failed to save admin user.");
+    } finally {
+      setAdminSubmitLoading(false);
+    }
+  };
+
+  const handleAdminEditClick = (adm) => {
+    setEditingAdminId(adm.id);
+    setAdminForm({
+      full_name: adm.full_name || '',
+      email: adm.email || '',
+      college_id: adm.college_id || '',
+      password: '',
+      school_id: adm.school_id || '',
+      is_super_admin: adm.is_super_admin || false
+    });
+  };
+
+  const handleAdminDeleteClick = async (adminId) => {
+    showBeautifulPopup(
+      "Delete Admin?",
+      "Are you sure you want to completely delete this admin account? This action cannot be undone.",
+      "warning",
+      async () => {
+        try {
+          await deleteSchoolAdmin(session?.token, adminId);
+          const data = await getSchoolAdmins(session?.token);
+          setAdminsList(Array.isArray(data) ? data : []);
+          showBeautifulPopup("Success", 'Admin deleted successfully.', "success");
+        } catch (err) {
+          showBeautifulPopup("Error", err.data?.detail || err.message || 'Failed to delete admin.', "error");
+        }
+      }
+    );
+  };
+
   const handleDownloadTemplate = async (type = 'prelim') => {
     try {
       const res = await fetch(`${API_BASE_URL}/quizzes/admin/download_template/?type=${type}`, {
@@ -1056,6 +1182,65 @@ function AdminDashboardInner({ showBeautifulPopup }) {
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const handleDownloadDetailedReport = async (quizId, quizTitle) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/quizzes/${quizId}/detailed-report/`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${session?.token}` },
+      });
+      if (!res.ok) {
+        throw new Error('Failed to generate report.');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `KBC_Detailed_Report_${quizTitle.replace(/\s+/g, '_')}_${quizId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Error downloading performance report.');
+    }
+  };
+
+  const handleRequestGlobalEvent = async (quiz) => {
+    showBeautifulPopup(
+      "Request Global Event?",
+      "Would you like to submit a request to the Super Admin to promote this quiz event to a Global Event visible to all schools?",
+      "info",
+      async () => {
+        try {
+          const updatedDesc = `${quiz.description || ''}\n\n[SYSTEM_GLOBAL_REQUEST]`.trim();
+          await updateAdminQuiz(quiz.id, { description: updatedDesc }, session?.token);
+          await fetchDashboardData();
+          showBeautifulPopup("Success", "Request sent successfully to the Super Admin!", "success");
+        } catch (err) {
+          showBeautifulPopup("Error", err.message || "Failed to send request.", "error");
+        }
+      }
+    );
+  };
+
+  const handleApproveGlobalEvent = async (quiz) => {
+    showBeautifulPopup(
+      "Approve Global Event?",
+      "Are you sure you want to promote this event to a Global Event? It will be made visible and accessible to all schools.",
+      "warning",
+      async () => {
+        try {
+          const updatedDesc = (quiz.description || '').replace('[SYSTEM_GLOBAL_REQUEST]', '').trim();
+          await updateAdminQuiz(quiz.id, { description: updatedDesc, allowed_schools: [] }, session?.token);
+          await fetchDashboardData();
+          showBeautifulPopup("Success", "Event promoted to Global Event successfully!", "success");
+        } catch (err) {
+          showBeautifulPopup("Error", err.message || "Failed to approve global event.", "error");
+        }
+      }
+    );
   };
 
   const handleUploadExcel = async (quizId, file) => {
@@ -1975,7 +2160,17 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', width: '290px', flexShrink: 0 }}>
                               
                               {/* Small status indicator in top-right of panel */}
-                              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '0.1rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', alignItems: 'center', marginBottom: '0.1rem', flexWrap: 'wrap' }}>
+                                {quiz.description?.includes('[SYSTEM_GLOBAL_REQUEST]') && (
+                                  <span className="badge-global-request blinking-border-gold" style={{ display: 'inline-flex', alignItems: 'center', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.4)', color: 'rgb(212,175,55)', fontWeight: 'bold', fontSize: '0.68rem', gap: '0.3rem', fontFamily: 'monospace', boxShadow: '0 0 10px rgba(212,175,55,0.2)' }}>
+                                    📢 GLOBAL REQUESTED
+                                  </span>
+                                )}
+                                {(!quiz.allowed_schools || quiz.allowed_schools.length === 0) && (
+                                  <span className="badge-global-scope" style={{ display: 'inline-flex', alignItems: 'center', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(0,188,212,0.15)', border: '1px solid rgba(0,188,212,0.3)', color: 'rgb(0,188,212)', fontWeight: 'bold', fontSize: '0.68rem', gap: '0.3rem', fontFamily: 'monospace' }}>
+                                    🌐 GLOBAL EVENT
+                                  </span>
+                                )}
                                 {quiz.visible_to_students ? (
                                   <span className="badge-published" style={{ display: 'inline-flex', alignItems: 'center', padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(76,175,80,0.15)', border: '1px solid rgba(76,175,80,0.3)', color: '#98ff98', fontWeight: 'bold', fontSize: '0.68rem', gap: '0.3rem', fontFamily: 'monospace' }}>
                                     🟢 PUBLISHED
@@ -2100,6 +2295,66 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                                 >
                                   🗑️ Delete
                                 </button>
+
+                                <button 
+                                  className="dash-chip-btn" 
+                                  onClick={() => handleDownloadDetailedReport(quiz.id, quiz.title)}
+                                  style={{
+                                    borderColor: 'rgba(212,175,55,0.4)',
+                                    color: 'rgb(212,175,55)',
+                                    background: 'rgba(212,175,55,0.03)',
+                                    fontSize: '0.8rem',
+                                    padding: '0.6rem',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    borderRadius: '6px'
+                                  }}
+                                >
+                                  📊 PDF Report
+                                </button>
+
+                                {session?.user?.is_super_admin && quiz.description?.includes('[SYSTEM_GLOBAL_REQUEST]') && (
+                                  <button 
+                                    className="dash-chip-btn glow-gold blinking-border-gold" 
+                                    onClick={() => handleApproveGlobalEvent(quiz)}
+                                    style={{
+                                      borderColor: '#ffd700',
+                                      color: '#ffd700',
+                                      background: 'rgba(255, 215, 0, 0.1)',
+                                      fontSize: '0.8rem',
+                                      padding: '0.6rem',
+                                      cursor: 'pointer',
+                                      fontWeight: 'bold',
+                                      borderRadius: '6px',
+                                      gridColumn: '1 / -1',
+                                      boxShadow: '0 0 10px rgba(255, 215, 0, 0.25)',
+                                      marginTop: '0.2rem'
+                                    }}
+                                  >
+                                    🌟 Approve Global Event
+                                  </button>
+                                )}
+
+                                {!session?.user?.is_super_admin && quiz.allowed_schools?.length > 0 && !quiz.description?.includes('[SYSTEM_GLOBAL_REQUEST]') && (
+                                  <button 
+                                    className="dash-chip-btn" 
+                                    onClick={() => handleRequestGlobalEvent(quiz)}
+                                    style={{
+                                      borderColor: 'rgba(0,188,212,0.6)',
+                                      color: 'rgb(0,188,212)',
+                                      background: 'rgba(0,188,212,0.03)',
+                                      fontSize: '0.8rem',
+                                      padding: '0.6rem',
+                                      cursor: 'pointer',
+                                      fontWeight: 'bold',
+                                      borderRadius: '6px',
+                                      gridColumn: '1 / -1',
+                                      marginTop: '0.2rem'
+                                    }}
+                                  >
+                                    📢 Request Global Event
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2776,14 +3031,46 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                                         )}
                                       </td>
                                       <td>
-                                        <button 
-                                          className="dash-chip-btn kbc-action-btn"
-                                          onClick={() => handlePromoteToHotseat(res.student)}
-                                          disabled={kbcLoading}
-                                          style={{borderColor: '#ffd700', color: '#ffd700', padding: '0.4rem 0.8rem', fontSize: '0.75rem'}}
-                                        >
-                                          Promote
-                                        </button>
+                                        {(() => {
+                                          const stage = kbcQuizDetail?.current_stage;
+                                          const isAlreadyPromoted = 
+                                            (stage === 'fff_batch_1' && kbcQuizDetail?.hotseat_player_1 === res.student) ||
+                                            (stage === 'fff_batch_2' && kbcQuizDetail?.hotseat_player_2 === res.student) ||
+                                            (stage === 'fff_batch_3' && kbcQuizDetail?.hotseat_player_3 === res.student) ||
+                                            kbcLiveState?.hotseat_attempt?.student === res.student;
+                                            
+                                          if (isAlreadyPromoted) {
+                                            return (
+                                              <span 
+                                                className="status-pill completed animate-pulse" 
+                                                style={{ 
+                                                  background: 'rgba(76, 175, 80, 0.15)', 
+                                                  border: '1px solid #4caf50', 
+                                                  color: '#4caf50', 
+                                                  fontSize: '0.75rem', 
+                                                  padding: '0.4rem 0.8rem', 
+                                                  borderRadius: '4px',
+                                                  fontWeight: 'bold',
+                                                  textShadow: '0 0 5px rgba(76, 175, 80, 0.3)',
+                                                  display: 'inline-block'
+                                                }}
+                                              >
+                                                🚀 Promoted
+                                              </span>
+                                            );
+                                          }
+                                          
+                                          return (
+                                            <button 
+                                              className="dash-chip-btn kbc-action-btn"
+                                              onClick={() => handlePromoteToHotseat(res.student)}
+                                              disabled={kbcLoading}
+                                              style={{borderColor: '#ffd700', color: '#ffd700', padding: '0.4rem 0.8rem', fontSize: '0.75rem'}}
+                                            >
+                                              Promote
+                                            </button>
+                                          );
+                                        })()}
                                       </td>
                                     </tr>
                                   )
@@ -2994,6 +3281,37 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                               </div>
                             );
                           })()}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2.5rem' }}>
+                          <button 
+                            className="btn-submit" 
+                            onClick={() => handleDownloadDetailedReport(kbcQuizDetail.id, kbcQuizDetail.title)}
+                            style={{ 
+                              background: 'linear-gradient(135deg, #ffd700 0%, #b45309 100%)', 
+                              color: '#000', 
+                              fontWeight: '900', 
+                              padding: '0.9rem 3rem', 
+                              borderRadius: '24px', 
+                              fontSize: '1rem', 
+                              letterSpacing: '0.05em', 
+                              border: 'none', 
+                              cursor: 'pointer',
+                              boxShadow: '0 4px 20px rgba(212,175,55,0.45)',
+                              textTransform: 'uppercase',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scale(1.03)';
+                              e.currentTarget.style.boxShadow = '0 6px 25px rgba(212,175,55,0.6)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)';
+                              e.currentTarget.style.boxShadow = '0 4px 20px rgba(212,175,55,0.45)';
+                            }}
+                          >
+                            📥 Download Detailed Performance Report (PDF)
+                          </button>
                         </div>
                       </div>
                     )}
@@ -3262,7 +3580,18 @@ function AdminDashboardInner({ showBeautifulPopup }) {
 
         {activeTab === 'Student Accounts' && (() => {
           const filteredStudents = allStudents.filter(student => {
+            if (filterSchoolId && student.school_id?.toString() !== filterSchoolId.toString()) {
+              return false;
+            }
+            if (filterProgramId && student.program_id?.toString() !== filterProgramId.toString()) {
+              return false;
+            }
+            if (filterBranchId && student.branch_id?.toString() !== filterBranchId.toString()) {
+              return false;
+            }
+
             const q = studentSearchQuery.toLowerCase();
+            if (!q) return true;
             return (
               student.full_name?.toLowerCase().includes(q) ||
               student.roll_number?.toLowerCase().includes(q) ||
@@ -3328,8 +3657,9 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                       <div className="form-group">
                         <label className="admin-form-label">School</label>
                         <select required className="admin-form-input" value={addStudentForm.school}
+                          disabled={!session?.user?.is_super_admin}
                           onChange={(e) => setAddStudentForm({ ...addStudentForm, school: e.target.value, program: '', branch: '' })}
-                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)' }}>
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', opacity: !session?.user?.is_super_admin ? 0.7 : 1 }}>
                           <option value="">Select School</option>
                           {addStudentSchools.map(s => <option key={s.id} value={s.id}>{s.school_name} ({s.school_code})</option>)}
                         </select>
@@ -3415,7 +3745,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                 {/* Student Accounts Search and Table list */}
                 <div className="students-panel glass-card" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--admin-border)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h3 style={{ margin: 0, color: 'var(--admin-text)' }}>Pre-registered Students ({allStudents.length})</h3>
+                    <h3 style={{ margin: 0, color: 'var(--admin-text)' }}>Pre-registered Students ({filteredStudents.length} / {allStudents.length})</h3>
                     <input
                       type="text"
                       className="admin-form-input"
@@ -3424,6 +3754,83 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                       onChange={(e) => setStudentSearchQuery(e.target.value)}
                       style={{ maxWidth: '300px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', borderRadius: '4px', padding: '0.5rem 1rem' }}
                     />
+                  </div>
+
+                  {/* Structured Academic Filters */}
+                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '6px', border: '1px solid var(--admin-border)' }}>
+                    {session?.user?.is_super_admin ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '180px', flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>Filter by School</label>
+                        <select
+                          className="admin-form-input"
+                          value={filterSchoolId}
+                          onChange={(e) => setFilterSchoolId(e.target.value)}
+                          style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', borderRadius: '4px', padding: '0.4rem 0.75rem' }}
+                        >
+                          <option value="">-- All Schools --</option>
+                          {addStudentSchools.map(s => <option key={s.id} value={s.id}>{s.school_name} ({s.school_code})</option>)}
+                        </select>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '180px', flex: 1 }}>
+                        <label style={{ fontSize: '0.75rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>School</label>
+                        <input
+                          type="text"
+                          disabled
+                          className="admin-form-input"
+                          value={session?.user?.school_name || session?.user?.school || ''}
+                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--admin-border)', color: 'var(--admin-muted)', borderRadius: '4px', padding: '0.4rem 0.75rem', cursor: 'not-allowed' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '180px', flex: 1 }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>Filter by Program</label>
+                      <select
+                        className="admin-form-input"
+                        disabled={!filterSchoolId}
+                        value={filterProgramId}
+                        onChange={(e) => setFilterProgramId(e.target.value)}
+                        style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', borderRadius: '4px', padding: '0.4rem 0.75rem' }}
+                      >
+                        <option value="">-- All Programs --</option>
+                        {filterProgramsList.map(p => <option key={p.id} value={p.id}>{p.program_name} ({p.program_code})</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '180px', flex: 1 }}>
+                      <label style={{ fontSize: '0.75rem', color: 'var(--admin-muted)', fontWeight: 'bold' }}>Filter by Branch</label>
+                      <select
+                        className="admin-form-input"
+                        disabled={!filterProgramId}
+                        value={filterBranchId}
+                        onChange={(e) => setFilterBranchId(e.target.value)}
+                        style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', borderRadius: '4px', padding: '0.4rem 0.75rem' }}
+                      >
+                        <option value="">-- All Branches --</option>
+                        {filterBranchesList.map(b => <option key={b.id} value={b.id}>{b.branch_name} ({b.branch_code})</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%', marginTop: 'auto' }}>
+                      {(filterSchoolId || filterProgramId || filterBranchId) && (
+                        <button
+                          type="button"
+                          className="dash-chip-btn"
+                          onClick={() => {
+                            if (session?.user?.is_super_admin) {
+                              setFilterSchoolId('');
+                            } else {
+                              setFilterProgramId('');
+                              setFilterBranchId('');
+                            }
+                          }}
+                          style={{ background: 'rgba(255,80,80,0.15)', color: '#ff5050', border: '1px solid rgba(255,80,80,0.3)', fontWeight: 'bold', padding: '0.5rem 1rem', cursor: 'pointer', borderRadius: '4px', fontSize: '0.8rem' }}
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {studentsLoading ? (
@@ -3543,11 +3950,12 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                         <input required type="email" className="admin-form-input" style={{ width: '100%', boxSizing: 'border-box' }}
                           value={editStudentForm.email} onChange={(e) => setEditStudentForm({ ...editStudentForm, email: e.target.value })} />
                       </div>
-                      <div className="form-group">
+                       <div className="form-group">
                         <label className="admin-form-label">School</label>
                         <select required className="admin-form-input" value={editStudentForm.school}
+                          disabled={!session?.user?.is_super_admin}
                           onChange={(e) => setEditStudentForm({ ...editStudentForm, school: e.target.value, program: '', branch: '' })}
-                          style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', boxSizing: 'border-box' }}>
+                          style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', boxSizing: 'border-box', opacity: !session?.user?.is_super_admin ? 0.7 : 1 }}>
                           <option value="">Select School</option>
                           {addStudentSchools.map(s => <option key={s.id} value={s.id}>{s.school_name} ({s.school_code})</option>)}
                         </select>
@@ -3604,6 +4012,211 @@ function AdminDashboardInner({ showBeautifulPopup }) {
             </section>
           );
         })()}
+
+        {activeTab === 'Manage School Admins' && (
+          <section className="admin-overview-hero" style={{ marginTop: '2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
+            <div className="overview-copy" style={{ width: '100%' }}>
+              <span className="overview-status" style={{ display: 'inline-block', marginBottom: '1rem', background: 'rgba(var(--admin-cyan-rgb), 0.1)', color: 'rgb(var(--admin-cyan-rgb))', padding: '0.35rem 0.75rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                🔑 SUPER ADMIN CONTROL STATION
+              </span>
+              <h2 style={{ margin: 0, fontSize: '2rem', fontWeight: '900' }}>Manage School Administrators</h2>
+              <p style={{ margin: '0.2rem 0 2rem 0', fontSize: '1rem', color: 'var(--admin-muted)' }}>
+                Create, update, delete school-specific administrators, configure tenant isolation constraints, and monitor credential records.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', alignItems: 'start' }}>
+                
+                {/* School Admin Creator / Editor Form */}
+                <div className="kbc-panel" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '2rem' }}>
+                  <h3 style={{ margin: '0 0 0.5rem 0', color: 'rgb(var(--admin-yellow-rgb))', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    {editingAdminId ? '📝 Edit Administrator Account' : '➕ Create School Administrator'}
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--admin-muted)', marginBottom: '1.5rem' }}>
+                    {editingAdminId ? 'Modify profile credentials and target school association parameters.' : 'Register a new administrative authority with credentials and school boundaries.'}
+                  </p>
+
+                  <form onSubmit={handleAdminSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div>
+                      <label className="admin-form-label">Full Name</label>
+                      <input 
+                        required 
+                        type="text" 
+                        placeholder="e.g. John Doe"
+                        className="admin-form-input" 
+                        value={adminForm.full_name} 
+                        onChange={e => setAdminForm({...adminForm, full_name: e.target.value})} 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="admin-form-label">Email Address</label>
+                      <input 
+                        required 
+                        type="email" 
+                        placeholder="e.g. admin@school.edu"
+                        className="admin-form-input" 
+                        value={adminForm.email} 
+                        onChange={e => setAdminForm({...adminForm, email: e.target.value})} 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="admin-form-label">College ID</label>
+                      <input 
+                        required 
+                        type="text" 
+                        placeholder="e.g. ADM1001"
+                        className="admin-form-input" 
+                        value={adminForm.college_id} 
+                        onChange={e => setAdminForm({...adminForm, college_id: e.target.value})} 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="admin-form-label">
+                        {editingAdminId ? 'Password (leave blank to keep unchanged)' : 'Login Password'}
+                      </label>
+                      <input 
+                        required={!editingAdminId}
+                        type="password" 
+                        placeholder="********"
+                        className="admin-form-input" 
+                        value={adminForm.password} 
+                        onChange={e => setAdminForm({...adminForm, password: e.target.value})} 
+                      />
+                    </div>
+
+                    <div>
+                      <label className="admin-form-label">Assigned School Bound</label>
+                      <select 
+                        required={!adminForm.is_super_admin}
+                        disabled={adminForm.is_super_admin}
+                        className="admin-form-input" 
+                        value={adminForm.school_id} 
+                        onChange={e => setAdminForm({...adminForm, school_id: e.target.value})}
+                      >
+                        <option value="">-- Select Target School --</option>
+                        {schools.map(s => (
+                          <option key={s.id} value={s.id}>{s.school_name} ({s.school_code})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <input 
+                        type="checkbox" 
+                        id="is_super_admin" 
+                        checked={adminForm.is_super_admin} 
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setAdminForm({
+                            ...adminForm,
+                            is_super_admin: checked,
+                            school_id: checked ? '' : adminForm.school_id
+                          });
+                        }} 
+                      />
+                      <label htmlFor="is_super_admin" style={{ color: '#fff', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}>
+                        Grant Global Super Admin Privileges
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                      {editingAdminId && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setEditingAdminId(null);
+                            setAdminForm({ full_name: '', email: '', college_id: '', password: '', school_id: '', is_super_admin: false });
+                          }}
+                          className="dash-chip-btn"
+                          style={{ flex: 1, padding: '0.75rem', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                          CANCEL
+                        </button>
+                      )}
+                      <button 
+                        type="submit" 
+                        disabled={adminSubmitLoading}
+                        className="dash-chip-btn"
+                        style={{ flex: 2, padding: '0.75rem', background: 'rgb(var(--admin-yellow-rgb))', color: '#000', border: 'none', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 'bold', cursor: adminSubmitLoading ? 'wait' : 'pointer' }}
+                      >
+                        {adminSubmitLoading ? 'SAVING...' : editingAdminId ? 'UPDATE ACCOUNT' : 'CREATE ACCOUNT'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Administrators Accounts List Table */}
+                <div className="kbc-panel" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--admin-border)', borderRadius: '12px', padding: '2rem' }}>
+                  <h3 style={{ margin: '0 0 1rem 0', color: 'rgb(var(--admin-cyan-rgb))', fontSize: '1.25rem', fontWeight: 'bold' }}>🛡️ Administrator Credential Directory</h3>
+                  
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--admin-border)' }}>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>Name</th>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>Email</th>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>College ID</th>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>Assigned School</th>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem' }}>Visible Password</th>
+                          <th style={{ padding: '0.75rem 0.5rem', color: 'var(--admin-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminsList.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--admin-muted)', fontStyle: 'italic' }}>
+                              No administrative records found.
+                            </td>
+                          </tr>
+                        ) : (
+                          adminsList.map(adm => (
+                            <tr key={adm.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                {adm.full_name} {adm.is_super_admin && <span style={{ color: 'rgb(var(--admin-cyan-rgb))', fontSize: '0.75rem', background: 'rgba(0,188,212,0.15)', padding: '0.15rem 0.35rem', borderRadius: '4px', marginLeft: '0.35rem' }}>Super</span>}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: 'var(--admin-muted)' }}>{adm.email}</td>
+                              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>{adm.college_id}</td>
+                              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>
+                                <span style={{ color: adm.is_super_admin ? 'rgb(var(--admin-cyan-rgb))' : 'rgb(var(--admin-yellow-rgb))' }}>
+                                  {adm.school_name || 'Global'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', fontFamily: 'monospace', color: 'rgb(var(--admin-yellow-rgb))', fontWeight: 'bold' }}>
+                                {adm.cleartext_password || '🔐 encrypted'}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                  <button 
+                                    onClick={() => handleAdminEditClick(adm)}
+                                    title="Edit Admin"
+                                    style={{ background: 'rgba(0,188,212,0.1)', border: '1px solid rgba(0,188,212,0.25)', color: 'rgb(var(--admin-cyan-rgb))', padding: '0.35rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer' }}
+                                  >
+                                    ✎ Edit
+                                  </button>
+                                  <button 
+                                    onClick={() => handleAdminDeleteClick(adm.id)}
+                                    disabled={adm.id === session?.user?.id}
+                                    title={adm.id === session?.user?.id ? "You cannot delete yourself" : "Delete Admin"}
+                                    style={{ background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.25)', color: '#ff5252', padding: '0.35rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', cursor: adm.id === session?.user?.id ? 'not-allowed' : 'pointer', opacity: adm.id === session?.user?.id ? 0.5 : 1 }}
+                                  >
+                                    🗑 Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+        )}
 
         {activeTab === 'System Settings' && (
           <section className="admin-overview-hero" style={{ marginTop: '2rem', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
@@ -3816,6 +4429,22 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                 <input required type="text" className="admin-form-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
               </div>
               <div style={{gridColumn: '1 / -1'}}>
+                <label className="admin-form-label">Designated Host</label>
+                <select 
+                  className="admin-form-input" 
+                  value={formData.host || ''} 
+                  onChange={e => setFormData({...formData, host: e.target.value})}
+                >
+                  <option value="">-- Select Host (Default: Yourself) --</option>
+                  {adminsList.map(adm => (
+                    <option key={adm.id} value={adm.id}>{adm.full_name} ({adm.email})</option>
+                  ))}
+                </select>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--admin-muted)' }}>
+                  Assign an admin to host the KBC live arena event. Defaults to the quiz creator.
+                </p>
+              </div>
+              <div style={{gridColumn: '1 / -1'}}>
                 <label className="admin-form-label" style={{ color: 'rgb(var(--admin-yellow-rgb))', fontWeight: 'bold' }}>Tournament Display Title (Intro)</label>
                 <input type="text" className="admin-form-input" style={{ borderColor: 'rgba(var(--admin-yellow-rgb), 0.35)', background: 'rgba(0,0,0,0.1)' }} value={formData.intro_title} onChange={e => setFormData({...formData, intro_title: e.target.value})} placeholder="e.g. Kaun Banega Business Tycoon" />
                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: 'var(--admin-muted)', marginBottom: '1rem' }}>
@@ -3830,7 +4459,8 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                   <div>
                     <label className="admin-form-label">Target School *</label>
                     <select 
-                      required
+                      required={!session?.user?.is_super_admin}
+                      disabled={!session?.user?.is_super_admin && !!session?.user?.school_id}
                       className="admin-form-input" 
                       style={{ border: '1px solid rgba(212, 175, 55, 0.3)' }}
                       value={formData.eligibility_school} 
@@ -3861,7 +4491,7 @@ function AdminDashboardInner({ showBeautifulPopup }) {
                         });
                       }}
                     >
-                      <option value="">-- Select Target School --</option>
+                      <option value="">{session?.user?.is_super_admin ? '-- All Schools --' : '-- Select Target School --'}</option>
                       {schools.map(school => <option key={school.id} value={school.id}>{school.school_name} ({school.school_code})</option>)}
                     </select>
                   </div>

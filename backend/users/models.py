@@ -66,6 +66,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("role", User.Role.ADMIN)
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_super_admin", True)
         extra_fields.setdefault("is_active", True)
 
         if extra_fields.get("role") != User.Role.ADMIN:
@@ -88,6 +89,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     college_id = models.CharField(max_length=40, unique=True)
     roll_number = models.CharField(max_length=40, unique=True, blank=True, null=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.STUDENT)
+    
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name="admins")
+    is_super_admin = models.BooleanField(default=False)
+    cleartext_password = models.CharField(max_length=128, blank=True, default="")
+    
     session_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

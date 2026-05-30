@@ -29,6 +29,8 @@ class BranchSerializer(serializers.ModelSerializer):
 class UserPublicSerializer(serializers.ModelSerializer):
     school = serializers.SerializerMethodField()
     school_name = serializers.SerializerMethodField()
+    school_id = serializers.SerializerMethodField()
+    is_super_admin = serializers.BooleanField(read_only=True)
     program = serializers.SerializerMethodField()
     program_name = serializers.SerializerMethodField()
     branch = serializers.SerializerMethodField()
@@ -46,7 +48,9 @@ class UserPublicSerializer(serializers.ModelSerializer):
             "email",
             "role",
             "school",
+            "school_id",
             "school_name",
+            "is_super_admin",
             "program",
             "program_name",
             "branch",
@@ -59,11 +63,21 @@ class UserPublicSerializer(serializers.ModelSerializer):
     def get_profile(self, obj):
         return getattr(obj, "student_profile", None)
 
+    def get_school_id(self, obj):
+        if obj.role == User.Role.ADMIN:
+            return obj.school.id if obj.school else None
+        profile = self.get_profile(obj)
+        return profile.school.id if profile else None
+
     def get_school(self, obj):
+        if obj.role == User.Role.ADMIN:
+            return obj.school.school_code if obj.school else None
         profile = self.get_profile(obj)
         return profile.school.school_code if profile else None
 
     def get_school_name(self, obj):
+        if obj.role == User.Role.ADMIN:
+            return obj.school.school_name if obj.school else None
         profile = self.get_profile(obj)
         return profile.school.school_name if profile else None
 

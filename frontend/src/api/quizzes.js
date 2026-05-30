@@ -208,6 +208,14 @@ export function hotseatPreselect(id, choiceId, token) {
   }, token);
 }
 
+export function submitSpectatorVote(id, choiceId, token) {
+  return request(`/quizzes/${id}/spectator-vote/`, {
+    method: 'POST',
+    body: JSON.stringify({ choice_id: choiceId }),
+  }, token);
+}
+
+
 // ==========================================
 // KBC Live Controller API Endpoints (Admin)
 // ==========================================

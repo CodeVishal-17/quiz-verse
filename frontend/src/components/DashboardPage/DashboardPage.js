@@ -285,8 +285,8 @@ function DashboardPage() {
           myRegistrations.map((reg) => {
             const hasPaid = reg.payment_status === 'paid';
             const playerID = reg.player_id || 'Awaiting Payment';
-            const actualPassword = reg.quiz_details?.event_password || '';
-            const passwordDisplay = actualPassword || 'Not Required';
+            const actualPassword = reg.arena_password || '';
+            const passwordDisplay = actualPassword;
             
             return (
               <div
@@ -332,7 +332,8 @@ function DashboardPage() {
                       className="enter-arena-btn-card"
                       onClick={() => {
                         localStorage.setItem(`quiz-${reg.quiz_details?.id}-player-id`, playerID);
-                        localStorage.setItem(`quiz-${reg.quiz_details?.id}-event-password`, actualPassword);
+                        localStorage.removeItem(`quiz-${reg.quiz_details?.id}-event-password`);
+                        sessionStorage.removeItem(`quiz-${reg.quiz_details?.id}-verified`);
                       }}
                     >
                       ENTER ARENA &rarr;
@@ -453,7 +454,7 @@ function DashboardPage() {
                   <h3 style={{marginTop: 0, color: 'rgb(var(--dash-mint-rgb))'}}>Registration Status</h3>
                   <p style={{margin: '0.5rem 0'}}><strong>Payment Status:</strong> <span className={registration.payment_status === 'paid' ? 'text-success' : 'text-warning'}>{registration.payment_status.toUpperCase()}</span></p>
                   <p style={{margin: '0.5rem 0'}}><strong>Player ID:</strong> <span className="neon-value-green">{registration.player_id || 'Awaiting Payment'}</span></p>
-                  <p style={{margin: '0.5rem 0'}}><strong>Event Password:</strong> <span className="neon-value-gold">{selectedQuiz.event_password || 'Not Required'}</span></p>
+                  <p style={{margin: '0.5rem 0'}}><strong>Event Password:</strong> <span className="neon-value-gold">{registration.arena_password || ''}</span></p>
                   
                   {registration.payment_status === 'pending' && parseFloat(selectedQuiz.registration_fee) > 0 && (
                     <button 
@@ -473,7 +474,8 @@ function DashboardPage() {
                       style={{marginTop: '1.25rem', width: '100%', display: 'block', textAlign: 'center', textDecoration: 'none', background: 'linear-gradient(135deg, #ffd700, #d4af37)', color: '#000', fontWeight: 'bold'}}
                       onClick={() => {
                         localStorage.setItem(`quiz-${selectedQuiz.id}-player-id`, registration.player_id);
-                        localStorage.setItem(`quiz-${selectedQuiz.id}-event-password`, selectedQuiz.event_password || '');
+                        localStorage.removeItem(`quiz-${selectedQuiz.id}-event-password`);
+                        sessionStorage.removeItem(`quiz-${selectedQuiz.id}-verified`);
                       }}
                     >
                       ENTER ARENA

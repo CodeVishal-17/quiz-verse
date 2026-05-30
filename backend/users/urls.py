@@ -11,6 +11,8 @@ from .views import (
     ProgramListView,
     SchoolListView,
     StudentChangePasswordView,
+    SuperAdminManageAdminsView,
+    SuperAdminManageAdminsDetailView,
 )
 
 
@@ -25,4 +27,6 @@ urlpatterns = [
     path("admin/students/<int:pk>/", AdminStudentDetailView.as_view(), name="admin-student-detail"),
     path("admin/students/bulk-upload/", AdminStudentBulkUploadView.as_view(), name="admin-student-bulk-upload"),
     path("admin/students/download-template/", AdminStudentTemplateDownloadView.as_view(), name="admin-student-template"),
+    path("admin/manage-admins/", SuperAdminManageAdminsView.as_view(), name="super-admin-manage-admins"),
+    path("admin/manage-admins/<int:pk>/", SuperAdminManageAdminsDetailView.as_view(), name="super-admin-manage-admins-detail"),
 ]

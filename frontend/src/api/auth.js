@@ -166,3 +166,34 @@ export function changePassword(token, payload) {
 export function clearAuthSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
+
+export function getSchoolAdmins(token) {
+  return request('/users/admin/manage-admins/', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createSchoolAdmin(token, payload) {
+  return request('/users/admin/manage-admins/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateSchoolAdmin(token, adminId, payload) {
+  return request(`/users/admin/manage-admins/${adminId}/`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteSchoolAdmin(token, adminId) {
+  return request(`/users/admin/manage-admins/${adminId}/`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+

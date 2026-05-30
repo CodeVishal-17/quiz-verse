@@ -149,7 +149,8 @@ class AdminStudentListView(APIView):
         return user
 
     def get(self, request):
-        if not self._require_admin(request):
+        admin_user = self._require_admin(request)
+        if not admin_user:
             return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
 
         students = User.objects.filter(role=User.Role.STUDENT).select_related(
@@ -157,6 +158,27 @@ class AdminStudentListView(APIView):
             "student_profile__program",
             "student_profile__branch",
         ).order_by("-created_at")
+
+        # Enforce school boundary for school admins
+        if not admin_user.is_super_admin:
+            if admin_user.school:
+                students = students.filter(student_profile__school=admin_user.school)
+            else:
+                students = students.none()
+        else:
+            # Super admin can filter by school
+            school_filter = request.query_params.get("school_id") or request.query_params.get("school")
+            if school_filter:
+                students = students.filter(student_profile__school_id=school_filter)
+
+        # Both super admin and school admin can filter by program and branch
+        program_filter = request.query_params.get("program_id") or request.query_params.get("program")
+        if program_filter:
+            students = students.filter(student_profile__program_id=program_filter)
+
+        branch_filter = request.query_params.get("branch_id") or request.query_params.get("branch")
+        if branch_filter:
+            students = students.filter(student_profile__branch_id=branch_filter)
 
         data = []
         for s in students:
@@ -473,3 +495,161 @@ class StudentChangePasswordView(APIView):
             "detail": "Password changed successfully. Please log in again.",
             "token": str(user.session_token),
         })
+
+
+class SuperAdminManageAdminsView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def _require_super_admin(self, request):
+        user = get_user_from_request_token(request)
+        if user is None or not user.is_super_admin:
+            return None
+        return user
+
+    def get(self, request):
+        user = get_user_from_request_token(request)
+        if user is None or user.role != User.Role.ADMIN:
+            return Response({"detail": "Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+            
+        if user.is_super_admin:
+            admins = User.objects.filter(role=User.Role.ADMIN).select_related('school')
+        else:
+            if not user.school:
+                admins = User.objects.filter(id=user.id)
+            else:
+                admins = User.objects.filter(role=User.Role.ADMIN, school=user.school).select_related('school')
+                
+        data = []
+        for a in admins:
+            data.append({
+                "id": a.id,
+                "full_name": a.full_name,
+                "email": a.email,
+                "college_id": a.college_id,
+                "school_id": a.school.id if a.school else None,
+                "school_name": a.school.school_name if a.school else "Global / Super Admin" if a.is_super_admin else "None",
+                "school_code": a.school.school_code if a.school else "SUPER" if a.is_super_admin else "",
+                "is_super_admin": a.is_super_admin,
+                "is_active": a.is_active,
+                "cleartext_password": a.cleartext_password or "",
+            })
+        return Response(data)
+
+    def post(self, request):
+        if not self._require_super_admin(request):
+            return Response({"detail": "Super Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        full_name = request.data.get("full_name", "").strip()
+        email = request.data.get("email", "").strip().lower()
+        college_id = request.data.get("college_id", "").strip().upper()
+        school_id = request.data.get("school_id")
+        password = request.data.get("password", "").strip()
+        is_super = request.data.get("is_super_admin", False)
+
+        if not full_name or not email or not college_id or not password:
+            return Response({"detail": "full_name, email, college_id, and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(email__iexact=email).exists():
+            return Response({"detail": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(college_id__iexact=college_id).exists():
+            return Response({"detail": "A user with this college ID already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        school_obj = None
+        if school_id:
+            try:
+                school_obj = School.objects.get(id=school_id)
+            except School.DoesNotExist:
+                return Response({"detail": "Selected school not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.create_user(
+            email=email,
+            password=password,
+            full_name=full_name,
+            college_id=college_id,
+            roll_number=college_id,
+            role=User.Role.ADMIN,
+            school=school_obj,
+            is_super_admin=is_super,
+            cleartext_password=password,
+            is_staff=True,
+            is_superuser=is_super
+        )
+
+        return Response({"detail": "Admin user created successfully.", "id": user.id}, status=status.HTTP_201_CREATED)
+
+
+class SuperAdminManageAdminsDetailView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def _require_super_admin(self, request):
+        user = get_user_from_request_token(request)
+        if user is None or not user.is_super_admin:
+            return None
+        return user
+
+    def put(self, request, pk):
+        if not self._require_super_admin(request):
+            return Response({"detail": "Super Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            admin = User.objects.get(pk=pk, role=User.Role.ADMIN)
+        except User.DoesNotExist:
+            return Response({"detail": "Admin user not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        full_name = request.data.get("full_name", "").strip()
+        email = request.data.get("email", "").strip().lower()
+        college_id = request.data.get("college_id", "").strip().upper()
+        school_id = request.data.get("school_id")
+        password = request.data.get("password", "").strip()
+        is_super = request.data.get("is_super_admin", admin.is_super_admin)
+        is_active = request.data.get("is_active", admin.is_active)
+
+        if full_name:
+            admin.full_name = full_name
+        if email:
+            if User.objects.exclude(id=admin.id).filter(email__iexact=email).exists():
+                return Response({"detail": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            admin.email = email
+        if college_id:
+            if User.objects.exclude(id=admin.id).filter(college_id__iexact=college_id).exists():
+                return Response({"detail": "A user with this college ID already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            admin.college_id = college_id
+            admin.roll_number = college_id
+
+        if 'school_id' in request.data:
+            if school_id:
+                try:
+                    admin.school = School.objects.get(id=school_id)
+                except School.DoesNotExist:
+                    return Response({"detail": "Selected school not found."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                admin.school = None
+
+        if password:
+            admin.set_password(password)
+            admin.cleartext_password = password
+
+        admin.is_super_admin = is_super
+        admin.is_superuser = is_super
+        admin.is_active = is_active
+        admin.save()
+
+        return Response({"detail": "Admin user updated successfully."})
+
+    def delete(self, request, pk):
+        if not self._require_super_admin(request):
+            return Response({"detail": "Super Admin access required."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            admin = User.objects.get(pk=pk, role=User.Role.ADMIN)
+        except User.DoesNotExist:
+            return Response({"detail": "Admin user not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if admin == get_user_from_request_token(request):
+            return Response({"detail": "You cannot delete your own account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        admin.delete()
+        return Response({"detail": "Admin user deleted successfully."})

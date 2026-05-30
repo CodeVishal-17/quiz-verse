@@ -10,6 +10,7 @@ class QuizSerializer(serializers.ModelSerializer):
     hotseat_player_1_name = serializers.CharField(source='hotseat_player_1.full_name', read_only=True)
     hotseat_player_2_name = serializers.CharField(source='hotseat_player_2.full_name', read_only=True)
     hotseat_player_3_name = serializers.CharField(source='hotseat_player_3.full_name', read_only=True)
+    host_name = serializers.CharField(source='host.full_name', read_only=True)
     
     total_questions_count = serializers.SerializerMethodField()
     prelim_questions_count = serializers.SerializerMethodField()
@@ -37,7 +38,7 @@ class QuizSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
             'total_questions_count', 'prelim_questions_count', 'fff_questions_count',
             'hotseat_1_questions_count', 'hotseat_2_questions_count', 'hotseat_3_questions_count',
-            'switch_categories_count'
+            'switch_categories_count', 'host', 'host_name'
         ]
         read_only_fields = ['created_at', 'updated_at', 'created_by']
         
@@ -71,17 +72,23 @@ class QuizSerializer(serializers.ModelSerializer):
 
 class QuizRegistrationSerializer(serializers.ModelSerializer):
     quiz_details = QuizSerializer(source='quiz', read_only=True)
+    arena_password = serializers.SerializerMethodField()
     
     class Meta:
         model = QuizRegistration
         fields = [
             'id', 'quiz', 'quiz_details', 'registered_at', 'updated_at',
-            'payment_status', 'sequence_number', 'player_id'
+            'payment_status', 'sequence_number', 'player_id', 'arena_password'
         ]
         read_only_fields = [
             'registered_at', 'updated_at', 'payment_status', 
             'sequence_number', 'player_id', 'quiz_details'
         ]
+
+    def get_arena_password(self, obj):
+        if obj.payment_status == QuizRegistration.PaymentStatus.PAID:
+            return obj.arena_password
+        return "LOCKED (AWAITING PAYMENT)"
 
 class EnrolledStudentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.full_name', read_only=True)
@@ -92,7 +99,7 @@ class EnrolledStudentSerializer(serializers.ModelSerializer):
         model = QuizRegistration
         fields = [
             'id', 'student_name', 'student_email', 'college_id',
-            'payment_status', 'sequence_number', 'player_id', 'registered_at'
+            'payment_status', 'sequence_number', 'player_id', 'arena_password', 'registered_at'
         ]
 
 from quizzes.models import Question, Choice, QuizAttempt, StudentAnswer

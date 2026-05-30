@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets, parsers
 from rest_framework.decorators import action
@@ -42,12 +42,29 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
     serializer_class = QuizSerializer
     
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, 'is_super_admin', False):
+            return Quiz.objects.annotate(
+                registered_count=Count('registrations')
+            ).all()
         return Quiz.objects.annotate(
             registered_count=Count('registrations')
-        ).all()
+        ).filter(
+            Q(created_by=user) | Q(host=user)
+        )
         
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        user = self.request.user
+        host_user = serializer.validated_data.get('host', user)
+        quiz = serializer.save(created_by=user, host=host_user)
+        if not getattr(user, 'is_super_admin', False) and getattr(user, 'school', None):
+            quiz.allowed_schools.set([user.school])
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        quiz = serializer.save()
+        if not getattr(user, 'is_super_admin', False) and getattr(user, 'school', None):
+            quiz.allowed_schools.set([user.school])
 
     @action(detail=False, methods=['get'])
     def download_template(self, request):
@@ -562,10 +579,27 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             return Response({"active": False, "detail": "No hotseat attempt found."})
         
         if attempt.status != HotseatAttempt.Status.PLAYING:
+            # Return question data even after round ends for answer key display
+            questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+            if attempt.current_question_index < len(questions):
+                question = questions[attempt.current_question_index]
+                choices = list(question.choices.all())
+                question_data = {
+                    "id": question.id,
+                    "text": question.text,
+                    "category": question.category,
+                    "trivia": question.trivia,
+                    "choices": [{"id": c.id, "text": c.text, "is_correct": c.is_correct} for c in choices]
+                }
+            else:
+                question_data = None
             return Response({
-                "active": False, "completed": True,
-                "status": attempt.status, "score": attempt.score,
-                "contestant_name": hotseat_player.full_name
+                "active": False,
+                "completed": True,
+                "status": attempt.status,
+                "score": attempt.score,
+                "contestant_name": hotseat_player.full_name,
+                "question": question_data
             })
         
         questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
@@ -679,9 +713,9 @@ class AdminQuizViewSet(viewsets.ModelViewSet):
             checkpoint_score = 0
             fail_index = attempt.current_question_index
             if fail_index >= 10:
-                checkpoint_score = 100
+                checkpoint_score = 320000
             elif fail_index >= 5:
-                checkpoint_score = 50
+                checkpoint_score = 10000
             
             attempt.score = checkpoint_score
             attempt.status = HotseatAttempt.Status.FAILED
@@ -1179,7 +1213,7 @@ class MyQuizRegistrationView(APIView):
             "id": reg.id,
             "player_id": reg.player_id,
             "payment_status": reg.payment_status,
-            "event_password_required": bool(quiz.event_password)
+            "event_password_required": True
         })
 
 
@@ -1310,7 +1344,15 @@ class PublishedQuizListView(APIView):
             visible_to_students=True,
             is_archived=False
         )
+        
+        profile = getattr(request.user, 'student_profile', None)
+        if profile and profile.school_id:
+            from django.db.models import Q
+            quizzes = quizzes.filter(Q(allowed_schools__id=profile.school_id) | Q(allowed_schools__isnull=True))
+            quizzes = quizzes.exclude(~Q(created_by__school_id=profile.school_id) & Q(created_by__is_super_admin=False) & Q(created_by__school__isnull=False))
+            
         return Response(QuizSerializer(quizzes, many=True).data)
+
 
 
 class QuizDetailView(APIView):
@@ -1427,11 +1469,17 @@ class VerifyQuizAccessView(APIView):
         if not reg or reg.payment_status != 'paid':
             return Response({"detail": "You are not registered or paid for this quiz."}, status=403)
             
+        if not reg.arena_password:
+            reg.save()
+            
         if reg.player_id.lower() != player_id.lower():
             return Response({"detail": "Invalid Player ID."}, status=400)
             
-        if quiz.event_password and quiz.event_password != password:
-            return Response({"detail": "Invalid Event Password. Please ask the organizers."}, status=400)
+        if not password:
+            return Response({"detail": "Password is required to enter the arena."}, status=400)
+            
+        if reg.arena_password != password:
+            return Response({"detail": "Invalid Event Password. Please enter the unique password shown on your dashboard."}, status=400)
             
         return Response({"success": True, "detail": "Access granted to the arena."})
 
@@ -1541,6 +1589,104 @@ class QuizLiveStateView(APIView):
         if active_hotseat_player:
             attempt = HotseatAttempt.objects.filter(quiz=quiz, student=active_hotseat_player, batch_number=active_batch).first()
             if attempt:
+                # Real-time Spectator Audience Poll Aggregation
+                if attempt.pending_lifeline_type == 'poll' and attempt.lifeline_request_status == 'approved':
+                    from quizzes.models import SpectatorPollVote
+                    from django.utils.dateparse import parse_datetime
+                    from django.utils import timezone
+                    
+                    approved_data = attempt.approved_lifeline_data or {}
+                    poll_start_time_str = approved_data.get('poll_start_time')
+                    votes_closed = approved_data.get('votes_closed', False)
+                    
+                    if poll_start_time_str and not votes_closed:
+                        poll_start_time = parse_datetime(poll_start_time_str)
+                        if poll_start_time:
+                            elapsed = (timezone.now() - poll_start_time).total_seconds()
+                            
+                            # Determine question type
+                            if active_batch == 1:
+                                q_type = Question.QuestionType.HOTSEAT_1
+                            elif active_batch == 2:
+                                q_type = Question.QuestionType.HOTSEAT_2
+                            else:
+                                q_type = Question.QuestionType.HOTSEAT_3
+                                
+                            questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+                            
+                            if attempt.current_question_index < len(questions):
+                                question = questions[attempt.current_question_index]
+                                choices = list(question.choices.all())
+                                
+                                if elapsed < 15.0:
+                                    # Active window: compute live votes
+                                    votes_count = {}
+                                    total_votes = 0
+                                    for c in choices:
+                                        cnt = SpectatorPollVote.objects.filter(attempt=attempt, question=question, choice=c).count()
+                                        votes_count[c.id] = cnt
+                                        total_votes += cnt
+                                    
+                                    live_votes = {}
+                                    if total_votes > 0:
+                                        for c_id, count in votes_count.items():
+                                            live_votes[c_id] = round((count / total_votes) * 100)
+                                    else:
+                                        for c in choices:
+                                            live_votes[c.id] = 0
+                                            
+                                    approved_data['votes'] = live_votes
+                                    attempt.approved_lifeline_data = approved_data
+                                    attempt.save(update_fields=['approved_lifeline_data'])
+                                else:
+                                    # Timer expired: finalize votes with KBC fallback
+                                    votes_count = {}
+                                    total_votes = 0
+                                    for c in choices:
+                                        cnt = SpectatorPollVote.objects.filter(attempt=attempt, question=question, choice=c).count()
+                                        votes_count[c.id] = cnt
+                                        total_votes += cnt
+                                        
+                                    final_votes = {}
+                                    if total_votes > 0:
+                                        for c_id, count in votes_count.items():
+                                            final_votes[c_id] = round((count / total_votes) * 100)
+                                    else:
+                                        # Fallback to KBC randomized correct-answer-weighted mock generator
+                                        correct_choice = next(c for c in choices if c.is_correct)
+                                        import random
+                                        correct_votes = random.randint(55, 75)
+                                        remaining_votes = 100 - correct_votes
+                                        
+                                        incorrect_choices = [c for c in choices if not c.is_correct]
+                                        random.shuffle(incorrect_choices)
+                                        
+                                        final_votes[correct_choice.id] = correct_votes
+                                        
+                                        if len(incorrect_choices) >= 3:
+                                            v1 = random.randint(5, max(5, remaining_votes - 10))
+                                            remaining_votes -= v1
+                                            v2 = random.randint(2, max(2, remaining_votes - 5))
+                                            remaining_votes -= v2
+                                            v3 = remaining_votes
+                                            
+                                            final_votes[incorrect_choices[0].id] = v1
+                                            final_votes[incorrect_choices[1].id] = v2
+                                            final_votes[incorrect_choices[2].id] = v3
+                                        else:
+                                            for idx, inc in enumerate(incorrect_choices):
+                                                if idx == len(incorrect_choices) - 1:
+                                                    final_votes[inc.id] = remaining_votes
+                                                else:
+                                                    v = random.randint(5, max(5, remaining_votes // 2))
+                                                    final_votes[inc.id] = v
+                                                    remaining_votes -= v
+                                                    
+                                    approved_data['votes'] = final_votes
+                                    approved_data['votes_closed'] = True
+                                    attempt.approved_lifeline_data = approved_data
+                                    attempt.save(update_fields=['approved_lifeline_data'])
+                                    
                 hotseat_attempt_data = HotseatAttemptSerializer(attempt).data
                     
         live_participants = quiz.registrations.count()
@@ -1772,21 +1918,21 @@ class HotseatPreselectView(APIView):
 
 
 SCORE_LADDER = [
-    10,   # Q1
-    20,   # Q2
-    30,   # Q3
-    40,   # Q4
-    50,   # Q5 (Checkpoint 1)
-    60,   # Q6
-    70,   # Q7
-    80,   # Q8
-    90,   # Q9
-    100,  # Q10 (Checkpoint 2)
-    110,  # Q11
-    120,  # Q12
-    130,  # Q13
-    140,  # Q14
-    150   # Q15 (Checkpoint 3)
+    1000,     # Q1
+    2000,     # Q2
+    3000,     # Q3
+    5000,     # Q4
+    10000,    # Q5 (Checkpoint 1)
+    20000,    # Q6
+    40000,    # Q7
+    80000,    # Q8
+    160000,   # Q9
+    320000,   # Q10 (Checkpoint 2)
+    640000,   # Q11
+    1250000,  # Q12
+    2500000,  # Q13
+    5000000,  # Q14
+    10000000  # Q15
 ]
 
 class HotseatSubmitView(APIView):
@@ -1853,9 +1999,9 @@ class HotseatSubmitView(APIView):
             checkpoint_score = 0
             fail_index = attempt.current_question_index
             if fail_index >= 10:
-                checkpoint_score = 100  # Drop to Checkpoint 2 score
+                checkpoint_score = 320000  # Drop to Checkpoint 2 score (Q10)
             elif fail_index >= 5:
-                checkpoint_score = 50   # Drop to Checkpoint 1 score
+                checkpoint_score = 10000   # Drop to Checkpoint 1 score (Q5)
             else:
                 checkpoint_score = 0
                 
@@ -1920,8 +2066,8 @@ class HotseatLifelineView(APIView):
         if not attempt.options_visible:
             return Response({"detail": "Lifelines can only be requested after choices are shown by the host."}, status=400)
             
-        if attempt.current_question_index >= 10:
-            return Response({"detail": "Lifelines are no longer available after the 10th question."}, status=400)
+        if attempt.current_question_index >= 14:
+            return Response({"detail": "Lifelines are no longer available on the 15th question."}, status=400)
             
         lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
         if not lifeline or lifeline not in ['5050', 'poll', 'switch']:
@@ -2114,8 +2260,8 @@ class HotseatLifelineRequestView(APIView):
         if not attempt.options_visible:
             return Response({"detail": "Lifelines can only be requested after choices are shown by the host."}, status=400)
             
-        if attempt.current_question_index >= 10:
-            return Response({"detail": "Lifelines are no longer available after the 10th question."}, status=400)
+        if attempt.current_question_index >= 14:
+            return Response({"detail": "Lifelines are no longer available on the 15th question."}, status=400)
             
         lifeline = request.data.get('lifeline') or request.data.get('lifeline_type')
         category = request.data.get('category', '')
@@ -2236,40 +2382,12 @@ class AdminApproveLifelineView(APIView):
             if attempt.lifeline_poll_used:
                 return Response({"detail": "Audience Poll lifeline already used."}, status=400)
                 
-            correct_choice = next(c for c in choices if c.is_correct)
-            
-            import random
-            correct_votes = random.randint(55, 75)
-            remaining_votes = 100 - correct_votes
-            
-            incorrect_choices = [c for c in choices if not c.is_correct]
-            random.shuffle(incorrect_choices)
-            
-            poll_results = {}
-            poll_results[correct_choice.id] = correct_votes
-            
-            if len(incorrect_choices) >= 3:
-                v1 = random.randint(5, max(5, remaining_votes - 10))
-                remaining_votes -= v1
-                v2 = random.randint(2, max(2, remaining_votes - 5))
-                remaining_votes -= v2
-                v3 = remaining_votes
-                
-                poll_results[incorrect_choices[0].id] = v1
-                poll_results[incorrect_choices[1].id] = v2
-                poll_results[incorrect_choices[2].id] = v3
-            else:
-                for idx, inc in enumerate(incorrect_choices):
-                    if idx == len(incorrect_choices) - 1:
-                        poll_results[inc.id] = remaining_votes
-                    else:
-                        v = random.randint(5, max(5, remaining_votes // 2))
-                        poll_results[inc.id] = v
-                        remaining_votes -= v
-                        
+            from django.utils import timezone
             attempt.lifeline_poll_used = True
             approved_data = {
-                "votes": poll_results
+                "poll_start_time": timezone.now().isoformat(),
+                "votes_closed": False,
+                "votes": {}
             }
             
         elif lifeline == 'switch':
@@ -2682,6 +2800,113 @@ class SystemPreferencesView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SpectatorVoteView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, pk):
+        quiz = get_object_or_404(Quiz, pk=pk)
+        
+        stage = quiz.current_stage
+        active_hotseat_player = None
+        active_batch = None
+        if stage == Quiz.Stage.HOTSEAT_BATCH_1:
+            active_hotseat_player = quiz.hotseat_player_1
+            active_batch = 1
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_2:
+            active_hotseat_player = quiz.hotseat_player_2
+            active_batch = 2
+        elif stage == Quiz.Stage.HOTSEAT_BATCH_3:
+            active_hotseat_player = quiz.hotseat_player_3
+            active_batch = 3
+            
+        if not active_hotseat_player or not active_batch:
+            return Response({"detail": "Hotseat is not active at this stage."}, status=400)
+            
+        attempt = HotseatAttempt.objects.filter(quiz=quiz, student=active_hotseat_player, batch_number=active_batch).first()
+        if not attempt or attempt.status != HotseatAttempt.Status.PLAYING:
+            return Response({"detail": "No active hotseat attempt running."}, status=400)
+            
+        if attempt.pending_lifeline_type != 'poll' or attempt.lifeline_request_status != 'approved':
+            return Response({"detail": "Audience Poll lifeline is not active."}, status=400)
+            
+        from django.utils.dateparse import parse_datetime
+        from django.utils import timezone
+        
+        approved_data = attempt.approved_lifeline_data or {}
+        poll_start_time_str = approved_data.get('poll_start_time')
+        votes_closed = approved_data.get('votes_closed', False)
+        
+        if not poll_start_time_str or votes_closed:
+            return Response({"detail": "Audience Poll has closed."}, status=400)
+            
+        poll_start_time = parse_datetime(poll_start_time_str)
+        if not poll_start_time:
+            return Response({"detail": "Invalid poll start time."}, status=400)
+            
+        elapsed = (timezone.now() - poll_start_time).total_seconds()
+        if elapsed >= 15.0:
+            approved_data['votes_closed'] = True
+            attempt.approved_lifeline_data = approved_data
+            attempt.save(update_fields=['approved_lifeline_data'])
+            return Response({"detail": "Audience Poll has closed."}, status=400)
+            
+        from quizzes.models import Question, Choice, SpectatorPollVote
+        if active_batch == 1:
+            q_type = Question.QuestionType.HOTSEAT_1
+        elif active_batch == 2:
+            q_type = Question.QuestionType.HOTSEAT_2
+        else:
+            q_type = Question.QuestionType.HOTSEAT_3
+            
+        questions = list(Question.objects.filter(quiz=quiz, question_type=q_type).order_by('order', 'id'))
+        if attempt.current_question_index >= len(questions):
+            return Response({"detail": "No active question found."}, status=400)
+            
+        question = questions[attempt.current_question_index]
+        
+        if SpectatorPollVote.objects.filter(attempt=attempt, student=request.user, question=question).exists():
+            return Response({"detail": "You have already voted for this question."}, status=400)
+            
+        choice_id = request.data.get('choice_id')
+        if not choice_id:
+            return Response({"detail": "Choice ID is required."}, status=400)
+            
+        choice = Choice.objects.filter(question=question, id=choice_id).first()
+        if not choice:
+            return Response({"detail": "Invalid choice selected for this question."}, status=400)
+            
+        SpectatorPollVote.objects.create(
+            attempt=attempt,
+            student=request.user,
+            question=question,
+            choice=choice
+        )
+        
+        return Response({"success": True, "detail": "Vote submitted successfully!"})
+
+
+class QuizDetailedReportView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        user = request.user
+        quiz = get_object_or_404(Quiz, pk=pk)
+        if not getattr(user, 'is_super_admin', False) and quiz.created_by != user and quiz.host != user:
+            return Response({"detail": "You do not have access to this quiz report."}, status=403)
+        
+        from quizzes.reports import generate_quiz_pdf_report
+        try:
+            pdf_data = generate_quiz_pdf_report(quiz.id)
+        except Exception as e:
+            return Response({"detail": f"Error generating report: {str(e)}"}, status=500)
+            
+        response = HttpResponse(pdf_data, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="kbc_report_{quiz.id}.pdf"'
+        return response
+
+
 
 
 

@@ -26,7 +26,8 @@ import {
   hostCompleteIntro,
   getSwitchCategories,
   selectHotseatSwitchCategory,
-  confirmHotseatSwitchCategory
+  confirmHotseatSwitchCategory,
+  submitSpectatorVote
 } from '../../api/quizzes';
 import { getAuthSession } from '../../api/auth';
 import KbcStageFx from '../KbcStageFx/KbcStageFx';
@@ -42,22 +43,26 @@ const SYMBOLS = {
 };
 
 const SCORE_LADDER = [
-  { level: 15, score: 150, checkpoint: true },
-  { level: 14, score: 140, checkpoint: false },
-  { level: 13, score: 130, checkpoint: false },
-  { level: 12, score: 120, checkpoint: false },
-  { level: 11, score: 110, checkpoint: false },
-  { level: 10, score: 100, checkpoint: true },
-  { level: 9,  score: 90, checkpoint: false },
-  { level: 8,  score: 80, checkpoint: false },
-  { level: 7,  score: 70, checkpoint: false },
-  { level: 6,  score: 60, checkpoint: false },
-  { level: 5,  score: 50, checkpoint: true },
-  { level: 4,  score: 40, checkpoint: false },
-  { level: 3,  score: 30, checkpoint: false },
-  { level: 2,  score: 20, checkpoint: false },
-  { level: 1,  score: 10, checkpoint: false }
+  { level: 15, score: 10000000, checkpoint: false },
+  { level: 14, score: 5000000, checkpoint: false },
+  { level: 13, score: 2500000, checkpoint: false },
+  { level: 12, score: 1250000, checkpoint: false },
+  { level: 11, score: 640000, checkpoint: false },
+  { level: 10, score: 320000, checkpoint: true },
+  { level: 9,  score: 160000, checkpoint: false },
+  { level: 8,  score: 80000, checkpoint: false },
+  { level: 7,  score: 40000, checkpoint: false },
+  { level: 6,  score: 20000, checkpoint: false },
+  { level: 5,  score: 10000, checkpoint: true },
+  { level: 4,  score: 5000, checkpoint: false },
+  { level: 3,  score: 3000, checkpoint: false },
+  { level: 2,  score: 2000, checkpoint: false },
+  { level: 1,  score: 1000, checkpoint: false }
 ];
+
+const formatPoints = (score) => {
+  return `${score.toLocaleString('en-IN')}`;
+};
 
 function QuizArenaInner({ showBeautifulPopup }) {
   const { id } = useParams();
@@ -103,14 +108,30 @@ function QuizArenaInner({ showBeautifulPopup }) {
     const params = new URLSearchParams(location.search);
     const roleParam = params.get('role');
     if (roleParam === 'host') return 'host';
+    
+    const savedPlayerId = localStorage.getItem(`quiz-${id}-player-id`);
+    if (savedPlayerId) {
+      return 'participant';
+    }
+    
     return sessionStorage.getItem(`quiz-${id}-role`) || null;
   });
 
   const [entryStage, setEntryStage] = useState(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('role') === 'host') return 'active';
+    
     const savedRole = sessionStorage.getItem(`quiz-${id}-role`);
     const savedEntered = sessionStorage.getItem(`quiz-${id}-entered`) === 'true';
+    
+    const savedPlayerId = localStorage.getItem(`quiz-${id}-player-id`);
+    if (savedPlayerId) {
+      const isVerifiedNow = sessionStorage.getItem(`quiz-${id}-verified`) === 'true';
+      if (isVerifiedNow && savedEntered) return 'active';
+      if (isVerifiedNow) return 'instructions';
+      return 'credentials';
+    }
+    
     if (savedRole && savedEntered) return 'active';
     if (savedRole) return 'instructions';
     return 'role_selection';
@@ -170,6 +191,9 @@ function QuizArenaInner({ showBeautifulPopup }) {
   const [pollAnimating, setPollAnimating] = useState(false);
   const [pollAnimVotes, setPollAnimVotes] = useState({});
   const pollAnimRef = useRef(null);
+  const [pollTimeLeft, setPollTimeLeft] = useState(0);
+  const [spectatorVotedChoiceId, setSpectatorVotedChoiceId] = useState(null);
+  const [submittingSpectatorVote, setSubmittingSpectatorVote] = useState(false);
   const hotseatTimerRef = useRef(null);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
   const [switchCategories, setSwitchCategories] = useState(["Science", "Bollywood", "History", "Sports", "General"]);
@@ -193,7 +217,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
       setHotseatCompleted(true);
       setHotseatStatus('failed');
       setHotseatScore(res.checkpoint_points || 0);
-      showBeautifulPopup("TIME OUT!", `Time ran out! You have been dropped to ${res.checkpoint_points || 0} points.`, 'error');
+      showBeautifulPopup("TIME OUT!", `Time ran out! You have been dropped to ${formatPoints(res.checkpoint_points || 0)}.`, 'error');
     } catch (err) {
       console.error("Timeout submit failed:", err);
     } finally {
@@ -306,6 +330,44 @@ function QuizArenaInner({ showBeautifulPopup }) {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isVerified]);
+
+  // Reset spectator local vote state when the active question changes
+  useEffect(() => {
+    setSpectatorVotedChoiceId(null);
+    setSubmittingSpectatorVote(false);
+  }, [hotseatQuestion?.id, liveState?.hotseat_attempt?.current_question_index]);
+
+  // Synchronized spectator voting countdown timer
+  useEffect(() => {
+    const approvedData = liveState?.hotseat_attempt?.approved_lifeline_data || {};
+    const pollStartTimeStr = approvedData?.poll_start_time;
+    if (!pollStartTimeStr || liveState?.hotseat_attempt?.pending_lifeline_type !== 'poll' || liveState?.hotseat_attempt?.lifeline_request_status !== 'approved') {
+      setPollTimeLeft(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const startTime = new Date(pollStartTimeStr).getTime();
+      const now = Date.now();
+      const elapsed = (now - startTime) / 1000;
+      const remaining = Math.max(0, Math.ceil(15 - elapsed));
+      setPollTimeLeft(remaining);
+      return remaining;
+    };
+
+    const remaining = updateTimer();
+    if (remaining <= 0) return;
+
+    const timer = setInterval(() => {
+      const rem = updateTimer();
+      if (rem <= 0) {
+        clearInterval(timer);
+      }
+    }, 200);
+
+    return () => clearInterval(timer);
+  }, [liveState?.hotseat_attempt?.approved_lifeline_data?.poll_start_time, liveState?.hotseat_attempt?.pending_lifeline_type, liveState?.hotseat_attempt?.lifeline_request_status]);
+
 
   // Sync state transitions & FFF timers
   useEffect(() => {
@@ -467,40 +529,11 @@ function QuizArenaInner({ showBeautifulPopup }) {
             setEliminatedChoiceIds(approvedData.eliminated_choice_ids);
             showBeautifulPopup("50:50 Lifeline Approved!", "Two incorrect choices have been eliminated.", "success");
             await acknowledgeHotseatLifeline(id, session?.token);
-          } else if (pendingType === 'poll' && approvedData.votes) {
-            const finalVotes = approvedData.votes;
+          } else if (pendingType === 'poll' && approvedData.poll_start_time) {
+            const finalVotes = approvedData.votes || {};
             setPollVotes(finalVotes);
             setShowPollModal(true);
-            setPollAnimating(true);
-            
-            const choiceIds = hotseatQuestion ? hotseatQuestion.choices.map(c => c.id) : Object.keys(finalVotes);
-            let tick = 0;
-            const totalTicks = 35;
-            if (pollAnimRef.current) clearInterval(pollAnimRef.current);
-            pollAnimRef.current = setInterval(() => {
-              tick++;
-              if (tick >= totalTicks) {
-                clearInterval(pollAnimRef.current);
-                pollAnimRef.current = null;
-                setPollAnimVotes(finalVotes);
-                setPollAnimating(false);
-                return;
-              }
-              const raws = choiceIds.map(() => Math.random());
-              const sum = raws.reduce((a, b) => a + b, 0);
-              const blend = Math.pow(tick / totalTicks, 3);
-              const fakeVotes = {};
-              let assigned = 0;
-              choiceIds.forEach((cid, idx) => {
-                const randomPct = Math.round((raws[idx] / sum) * 100);
-                const realPct = finalVotes[cid] || 0;
-                const blended = Math.round(randomPct * (1 - blend) + realPct * blend);
-                fakeVotes[cid] = idx === choiceIds.length - 1 ? Math.max(0, 100 - assigned) : blended;
-                assigned += fakeVotes[cid];
-              });
-              setPollAnimVotes(fakeVotes);
-            }, 200);
-            await acknowledgeHotseatLifeline(id, session?.token);
+            setPollAnimating(!approvedData.votes_closed);
           } else if (pendingType === 'switch') {
             if (!showCategorySelector && switchCategoriesList.length === 0 && !loadingCategories) {
               try {
@@ -894,7 +927,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
     } else if (levelQ < currentQ) {
       showBeautifulPopup("Question Completed", `ℹ️ Question ${levelQ} has already been completed.`, "info");
     } else {
-      showBeautifulPopup("Question In Progress", `✨ Contestant is currently playing Question ${levelQ} for ${SCORE_LADDER.find(l => l.level === levelQ)?.score} pts!`, "success");
+      showBeautifulPopup("Question In Progress", `✨ Contestant is currently playing Question ${levelQ} for ${formatPoints(SCORE_LADDER.find(l => l.level === levelQ)?.score || 0)}!`, "success");
     }
   };
 
@@ -987,8 +1020,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
       showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
       return;
     }
-    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
-      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+    if (liveState?.hotseat_attempt?.current_question_index >= 14) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available on the 15th question.", "warning");
       return;
     }
     try {
@@ -1005,8 +1038,8 @@ function QuizArenaInner({ showBeautifulPopup }) {
       showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
       return;
     }
-    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
-      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+    if (liveState?.hotseat_attempt?.current_question_index >= 14) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available on the 15th question.", "warning");
       return;
     }
     try {
@@ -1017,14 +1050,29 @@ function QuizArenaInner({ showBeautifulPopup }) {
     }
   };
 
+  const handleSpectatorVoteClick = async (choiceId) => {
+    if (spectatorVotedChoiceId || submittingSpectatorVote || pollTimeLeft <= 0) return;
+    try {
+      setSubmittingSpectatorVote(true);
+      await submitSpectatorVote(id, choiceId, session?.token);
+      setSpectatorVotedChoiceId(choiceId);
+      showBeautifulPopup("Vote Submitted!", "Your answer has been registered in the Audience Poll.", "success");
+    } catch (err) {
+      console.error("Failed to submit spectator vote:", err);
+      showBeautifulPopup("Voting Failed", err.message || "Failed to submit spectator vote", "error");
+    } finally {
+      setSubmittingSpectatorVote(false);
+    }
+  };
+
   const handleUseSwitchQuestion = async () => {
     if (liveState?.hotseat_attempt?.lifeline_switch_used) return;
     if (!liveState?.hotseat_attempt?.options_visible) {
       showBeautifulPopup("Locked", "You can only request a lifeline after the choices are revealed by the host.", "warning");
       return;
     }
-    if (liveState?.hotseat_attempt?.current_question_index >= 10) {
-      showBeautifulPopup("Locked", "Lifelines are no longer available after the 10th question.", "warning");
+    if (liveState?.hotseat_attempt?.current_question_index >= 14) {
+      showBeautifulPopup("Locked", "Lifelines are no longer available on the 15th question.", "warning");
       return;
     }
     try {
@@ -1279,10 +1327,10 @@ function QuizArenaInner({ showBeautifulPopup }) {
             </div>
 
             <div className="input-group">
-              <label>Event Security Password (If Applicable)</label>
+              <label>Event Security Password</label>
               <input 
                 type="password" 
-                placeholder="Enter event day password" 
+                placeholder="Enter your unique arena password" 
                 value={eventPassword}
                 onChange={(e) => setEventPassword(e.target.value)}
                 disabled={verifying}
@@ -1716,31 +1764,17 @@ function QuizArenaInner({ showBeautifulPopup }) {
           </div>
           {renderTopbar(`Spectating FFF Batch ${fffBatch}`, "SPECTATOR")}
 
-          <div className="arena-container">
-            <div className="glass-card panel-intro text-center">
-              <h2 className="golden-glow">FFF Batch {fffBatch} In Progress</h2>
-              <p>Active batch contestants are sorting the sequence as fast as possible. Below is the live question they are facing:</p>
+          <div className="arena-center" style={{ marginTop: '2rem' }}>
+            <div className="arena-completed-panel glass-card text-center glow-pink" style={{ maxWidth: '600px', margin: '0 auto' }}>
+              <div className="lock-icon" style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
+              <h2 className="title-text golden-glow font-bold">Fastest Finger First In Progress</h2>
+              <p style={{ margin: '1.5rem 0', fontSize: '1.1rem' }}>
+                Batch {fffBatch} contenders are currently competing in the FFF round to win a spot on the Hotseat!
+              </p>
+              <p className="helper-text" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                For security and fairness, FFF questions are hidden from spectators. Standby for the Host to promote the winner and start the Hotseat show!
+              </p>
             </div>
-
-            {liveState.fff_question ? (
-              <div className="spectator-fff-box">
-                <article className="arena-question-card glass-card">
-                  <h2>{liveState.fff_question.text}</h2>
-                </article>
-                <div className="arena-choices-grid">
-                  {liveState.fff_question.choices.map((c, idx) => (
-                    <div key={c.id} className="arena-choice-btn disabled">
-                      <div className="choice-indicator">{['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'][idx] || idx + 1}</div>
-                      <div className="choice-text">{c.text}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="glass-card text-center">
-                <h3>Loading FFF Question details...</h3>
-              </div>
-            )}
           </div>
         </main>
       );
@@ -2119,6 +2153,49 @@ function QuizArenaInner({ showBeautifulPopup }) {
                         );
                       })}
                     </div>
+                    
+                    {/* Real-time Host Audience Poll Display */}
+                    {hostHotseatData?.pending_lifeline_type === 'poll' && 
+                     hostHotseatData?.lifeline_request_status === 'approved' && (
+                      <div className="glass-card glow-cyan text-center animate-fade-in" style={{ padding: '1.5rem', margin: '2rem 0', background: 'rgba(33, 211, 238, 0.03)', border: '1px solid rgba(33, 211, 238, 0.25)', borderRadius: '12px' }}>
+                        <span className="golden-glow" style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                          🗳️ AUDIENCE POLL LIVE FEED (HOST VIEW)
+                        </span>
+                        <p style={{ margin: '0 0 1.5rem 0', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>
+                          {pollTimeLeft > 0 
+                            ? `Spectators are voting... (${pollTimeLeft}s remaining)` 
+                            : 'Voting concluded and results finalized.'
+                          }
+                        </p>
+                        
+                        <div className="poll-chart-container" style={{ margin: '0 auto', maxWidth: '450px' }}>
+                          {hostHotseatData.question.choices.map((choice, i) => {
+                            const displayVotes = hostHotseatData.approved_lifeline_data?.votes || {};
+                            const percentage = displayVotes[choice.id] || 0;
+                            const isHighest = percentage > 0 && percentage === Math.max(...Object.values(displayVotes));
+                            return (
+                              <div key={choice.id} className="poll-bar-col">
+                                <div className="poll-bar-wrapper">
+                                  <div
+                                    className={`poll-bar-fill ${isHighest ? 'poll-bar-winner' : ''}`}
+                                    style={{
+                                      height: `${percentage}%`,
+                                      transition: 'height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                      background: isHighest ? 'linear-gradient(180deg, #ffd700, #ff8c00)' : undefined
+                                    }}
+                                  >
+                                    <span className="poll-pct">{percentage}%</span>
+                                  </div>
+                                </div>
+                                <div className="poll-bar-label" style={{ fontWeight: isHighest ? '900' : '600', color: isHighest ? '#ffd700' : undefined }}>
+                                  {['A','B','C','D'][i]}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Cinematic Pacing Controller Panel */}
                     <div className="glass-card" style={{
@@ -2303,7 +2380,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
             <div className="hotseat-ladder-panel glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '85vh', overflowY: 'auto' }}>
               
               {/* Answer Key & Trivia Box */}
-              {hostHotseatData?.active && hostHotseatData?.question && (
+              {hostHotseatData?.question && (
                 <div className="admin-key-trivia-box glass-card glow-cyan" style={{ padding: '1.25rem', border: '1px solid rgba(0, 188, 212, 0.4)', background: 'rgba(0, 188, 212, 0.04)', borderRadius: '10px' }}>
                   <h3 className="golden-glow" style={{ fontSize: '1.1rem', margin: '0 0 1rem 0', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                     🔑 ANSWER KEY & INFO
@@ -2342,7 +2419,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
                         style={{ cursor: 'pointer' }}
                       >
                         <span className="step-num">{step.level}</span>
-                        <span className="step-score">{step.score} pts</span>
+                        <span className="step-score">{formatPoints(step.score)}</span>
                       </div>
                     );
                   })}
@@ -2461,10 +2538,10 @@ function QuizArenaInner({ showBeautifulPopup }) {
               {/* KBC Lifeline Buttons */}
               <div className="lifelines-row">
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_5050_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 14) ? 'locked' : ''}`}
                   onClick={handleUse5050}
-                  disabled={liveState?.hotseat_attempt?.lifeline_5050_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
-                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use 50:50"}
+                  disabled={liveState?.hotseat_attempt?.lifeline_5050_used || liveState?.hotseat_attempt?.current_question_index >= 14 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 14 ? "Lifelines locked on Q15" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use 50:50"}
                   style={{ position: 'relative' }}
                 >
                   <div className="lifeline-ring">
@@ -2490,10 +2567,10 @@ function QuizArenaInner({ showBeautifulPopup }) {
                 </button>
 
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_poll_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 14) ? 'locked' : ''}`}
                   onClick={handleUseAudiencePoll}
-                  disabled={liveState?.hotseat_attempt?.lifeline_poll_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
-                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Audience Poll"}
+                  disabled={liveState?.hotseat_attempt?.lifeline_poll_used || liveState?.hotseat_attempt?.current_question_index >= 14 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 14 ? "Lifelines locked on Q15" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Audience Poll"}
                   style={{ position: 'relative' }}
                 >
                   <div className="lifeline-ring">
@@ -2519,10 +2596,10 @@ function QuizArenaInner({ showBeautifulPopup }) {
                 </button>
 
                 <button 
-                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 10) ? 'locked' : ''}`}
+                  className={`btn-lifeline ${liveState?.hotseat_attempt?.lifeline_switch_used ? 'used' : ''} ${(!liveState?.hotseat_attempt?.options_visible || liveState?.hotseat_attempt?.current_question_index >= 14) ? 'locked' : ''}`}
                   onClick={handleUseSwitchQuestion}
-                  disabled={liveState?.hotseat_attempt?.lifeline_switch_used || liveState?.hotseat_attempt?.current_question_index >= 10 || !liveState?.hotseat_attempt?.options_visible}
-                  title={liveState?.hotseat_attempt?.current_question_index >= 10 ? "Lifelines locked after Q10" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Switch Question"}
+                  disabled={liveState?.hotseat_attempt?.lifeline_switch_used || liveState?.hotseat_attempt?.current_question_index >= 14 || !liveState?.hotseat_attempt?.options_visible}
+                  title={liveState?.hotseat_attempt?.current_question_index >= 14 ? "Lifelines locked on Q15" : !liveState?.hotseat_attempt?.options_visible ? "Options must be revealed first" : "Use Switch Question"}
                   style={{ position: 'relative' }}
                 >
                   <div className="lifeline-ring">
@@ -2610,7 +2687,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
                       className={`ladder-step ${isCurrent ? 'active' : ''} ${isPassed ? 'passed' : ''} ${step.checkpoint ? 'checkpoint' : ''}`}
                     >
                       <span className="step-num">{step.level}</span>
-                      <span className="step-score">{step.score} pts</span>
+                      <span className="step-score">{formatPoints(step.score)}</span>
                     </div>
                   );
                 })}
@@ -2623,17 +2700,23 @@ function QuizArenaInner({ showBeautifulPopup }) {
             <div className="modal-overlay">
               <div className="modal-content poll-modal glass-card glow-blue" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', padding: '2.5rem' }}>
                 <h2 className="golden-glow" style={{ marginBottom: '0.5rem' }}>
-                  {pollAnimating ? 'COLLECTING VOTES...' : 'AUDIENCE POLL RESULTS'}
+                  {pollAnimating 
+                    ? `COLLECTING VOTES... (${pollTimeLeft}s left)` 
+                    : 'AUDIENCE POLL RESULTS'
+                  }
                 </h2>
-                {pollAnimating && (
+                {pollAnimating ? (
                   <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '1.5rem', animation: 'pulse 1.2s infinite' }}>
-                    📊 Audience members are submitting their votes...
+                    📊 Spectators are submitting their votes in real-time... ({pollTimeLeft} seconds remaining)
+                  </p>
+                ) : (
+                  <p style={{ color: '#4caf50', fontSize: '0.9rem', marginBottom: '1.5rem', fontWeight: 'bold' }}>
+                    ✨ Poll Closed! Final results calculated.
                   </p>
                 )}
                 <div className="poll-chart-container">
                   {hotseatQuestion.choices.map((choice, i) => {
-                    const displayVotes = pollAnimating ? pollAnimVotes : pollVotes;
-                    const percentage = (displayVotes && displayVotes[choice.id]) || 0;
+                    const percentage = (pollVotes && pollVotes[choice.id]) || 0;
                     const isHighest = !pollAnimating && percentage === Math.max(...Object.values(pollVotes));
                     return (
                       <div key={choice.id} className="poll-bar-col">
@@ -2642,7 +2725,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
                             className={`poll-bar-fill ${isHighest && !pollAnimating ? 'poll-bar-winner' : ''}`}
                             style={{
                               height: `${percentage}%`,
-                              transition: pollAnimating ? 'height 0.15s linear' : 'height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                              transition: 'height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                               background: isHighest && !pollAnimating
                                 ? 'linear-gradient(180deg, #ffd700, #ff8c00)'
                                 : undefined
@@ -2658,9 +2741,26 @@ function QuizArenaInner({ showBeautifulPopup }) {
                     );
                   })}
                 </div>
-                {!pollAnimating && (
-                  <button className="btn-submit" onClick={() => setShowPollModal(false)} style={{ marginTop: '1.5rem' }}>CLOSE RESULTS</button>
-                )}
+                <button 
+                  className="btn-submit" 
+                  disabled={pollAnimating || pollTimeLeft > 0} 
+                  onClick={async () => {
+                    try {
+                      await acknowledgeHotseatLifeline(id, session?.token);
+                      setShowPollModal(false);
+                    } catch (err) {
+                      console.error("Failed to close poll lifeline:", err);
+                      setShowPollModal(false);
+                    }
+                  }} 
+                  style={{ 
+                    marginTop: '1.5rem',
+                    background: (pollAnimating || pollTimeLeft > 0) ? 'rgba(255,255,255,0.05)' : undefined,
+                    cursor: (pollAnimating || pollTimeLeft > 0) ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {(pollAnimating || pollTimeLeft > 0) ? `🗳️ VOTING IN PROGRESS (${pollTimeLeft}s)` : 'CLOSE RESULTS'}
+                </button>
               </div>
             </div>
           )}
@@ -2871,22 +2971,116 @@ function QuizArenaInner({ showBeautifulPopup }) {
                 </div>
               ) : hotseatQuestion ? (
                 <>
-                  <span className="question-category-tag">CATEGORY: {hotseatQuestion.category}</span>
-                  <article className="arena-question-card glass-card kbc-question-frame">
-                    <h2>{hotseatQuestion.text}</h2>
-                  </article>
+                  {/* Real-time Spectator Audience Poll Alert Banner */}
+                  {liveState?.hotseat_attempt?.pending_lifeline_type === 'poll' && 
+                   liveState?.hotseat_attempt?.lifeline_request_status === 'approved' && 
+                   pollTimeLeft > 0 && (
+                    <div className="glass-card glow-cyan text-center animate-pulse" style={{ padding: '1.25rem', marginBottom: '1.5rem', background: 'rgba(0, 191, 255, 0.1)', border: '1px solid #00bfff', borderRadius: '8px' }}>
+                      <span className="golden-glow" style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🗳️ LIVE AUDIENCE POLL IS ACTIVE!</span>
+                      <p style={{ margin: '0.5rem 0 0 0', color: '#fff', fontSize: '1rem', fontWeight: 'bold' }}>
+                        {spectatorVotedChoiceId 
+                          ? `You voted for Option ${['A','B','C','D'][hotseatQuestion.choices.findIndex(c => c.id === spectatorVotedChoiceId)]}! Waiting for others... (${pollTimeLeft}s remaining)`
+                          : `Submit your vote below! Time remaining: ${pollTimeLeft} seconds`
+                        }
+                      </p>
+                    </div>
+                  )}
 
-                  <div className="kbc-choices-grid">
-                    {hotseatQuestion.choices.map((choice, i) => (
-                      <div 
-                        key={choice.id}
-                        className="arena-choice-btn kbc-choice disabled"
-                      >
-                        <div className="choice-indicator">{['A','B','C','D'][i]}</div>
-                        <div className="choice-text">{choice.text}</div>
+                  {/* If Poll has closed, show the final results directly to the spectator */}
+                  {liveState?.hotseat_attempt?.pending_lifeline_type === 'poll' && 
+                   liveState?.hotseat_attempt?.lifeline_request_status === 'approved' && 
+                   pollTimeLeft === 0 && 
+                   liveState?.hotseat_attempt?.approved_lifeline_data?.votes ? (
+                    <>
+                      <div className="glass-card glow-blue text-center" style={{ padding: '1.5rem', marginBottom: '2rem', background: 'rgba(33, 211, 238, 0.05)', border: '1px solid rgba(33, 211, 238, 0.3)', borderRadius: '10px' }}>
+                        <span className="golden-glow" style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📊 AUDIENCE POLL RESULTS</span>
+                        <p style={{ margin: '0.5rem 0 0 0', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>Spectators have spoken! Here are the finalized results:</p>
                       </div>
-                    ))}
-                  </div>
+                      
+                      <div className="poll-chart-container" style={{ margin: '2rem auto', maxWidth: '500px', background: 'rgba(255,255,255,0.02)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        {hotseatQuestion.choices.map((choice, i) => {
+                          const displayVotes = liveState.hotseat_attempt.approved_lifeline_data.votes;
+                          const percentage = (displayVotes && displayVotes[choice.id]) || 0;
+                          const isHighest = percentage === Math.max(...Object.values(displayVotes));
+                          return (
+                            <div key={choice.id} className="poll-bar-col">
+                              <div className="poll-bar-wrapper">
+                                <div
+                                  className={`poll-bar-fill ${isHighest ? 'poll-bar-winner' : ''}`}
+                                  style={{
+                                    height: `${percentage}%`,
+                                    transition: 'height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                                    background: isHighest ? 'linear-gradient(180deg, #ffd700, #ff8c00)' : undefined
+                                  }}
+                                >
+                                  <span className="poll-pct">{percentage}%</span>
+                                </div>
+                              </div>
+                              <div className="poll-bar-label" style={{ fontWeight: isHighest ? '900' : '600', color: isHighest ? '#ffd700' : undefined }}>
+                                {['A','B','C','D'][i]}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="question-category-tag">CATEGORY: {hotseatQuestion.category}</span>
+                      <article className="arena-question-card glass-card kbc-question-frame">
+                        <h2>{hotseatQuestion.text}</h2>
+                      </article>
+
+                      <div className="kbc-choices-grid">
+                        {hotseatQuestion.choices.map((choice, i) => {
+                          const isPollActive = liveState?.hotseat_attempt?.pending_lifeline_type === 'poll' && 
+                                             liveState?.hotseat_attempt?.lifeline_request_status === 'approved' && 
+                                             pollTimeLeft > 0;
+                          
+                          if (isPollActive) {
+                            const hasVoted = spectatorVotedChoiceId !== null;
+                            const isVotedChoice = spectatorVotedChoiceId === choice.id;
+                            
+                            return (
+                              <button 
+                                key={choice.id}
+                                className={`arena-choice-btn kbc-choice ${isVotedChoice ? 'selected' : ''}`}
+                                onClick={() => handleSpectatorVoteClick(choice.id)}
+                                disabled={hasVoted || submittingSpectatorVote || pollTimeLeft <= 0}
+                                style={{
+                                  cursor: (hasVoted || pollTimeLeft <= 0) ? 'not-allowed' : 'pointer',
+                                  pointerEvents: (hasVoted || pollTimeLeft <= 0) ? 'none' : 'auto',
+                                  border: isVotedChoice ? '2px solid #00efff' : undefined,
+                                  boxShadow: isVotedChoice ? '0 0 15px rgba(0, 239, 255, 0.4)' : undefined,
+                                  background: isVotedChoice ? 'rgba(0, 239, 255, 0.1)' : undefined
+                                }}
+                              >
+                                <div className="choice-indicator">{['A','B','C','D'][i]}</div>
+                                <div className="choice-text">{choice.text}</div>
+                              </button>
+                            );
+                          }
+                          
+                          const isChoiceVisible = liveState?.hotseat_attempt?.options_visible && (revealedChoicesCount > i);
+                          return (
+                            <div 
+                              key={choice.id}
+                              className="arena-choice-btn kbc-choice disabled"
+                              style={{
+                                opacity: isChoiceVisible ? 1 : 0,
+                                pointerEvents: 'none',
+                                transform: isChoiceVisible ? 'translateY(0)' : 'translateY(10px)',
+                                transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+                              }}
+                            >
+                              <div className="choice-indicator">{['A','B','C','D'][i]}</div>
+                              <div className="choice-text">{isChoiceVisible ? choice.text : ""}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="glass-card text-center" style={{padding: '3rem'}}>
@@ -2909,7 +3103,7 @@ function QuizArenaInner({ showBeautifulPopup }) {
                     className={`ladder-step ${isCurrent ? 'active' : ''} ${isPassed ? 'passed' : ''} ${step.checkpoint ? 'checkpoint' : ''}`}
                   >
                     <span className="step-num">{step.level}</span>
-                    <span className="step-score">{step.score} pts</span>
+                    <span className="step-score">{formatPoints(step.score)}</span>
                   </div>
                 );
               })}

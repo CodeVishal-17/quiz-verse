@@ -82,6 +82,9 @@ class Quiz(models.Model):
     banner_image = models.ImageField(upload_to="quiz_banners/", blank=True, null=True)
     rules_instructions = models.TextField(blank=True)
 
+    host = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="hosted_quizzes"
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_quizzes"
     )
@@ -122,6 +125,7 @@ class QuizRegistration(models.Model):
     
     sequence_number = models.IntegerField(blank=True, null=True)
     player_id = models.CharField(max_length=40, blank=True)
+    arena_password = models.CharField(max_length=64, blank=True, default="")
     
     registered_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -139,6 +143,17 @@ class QuizRegistration(models.Model):
 
     def __str__(self):
         return f"{self.student.full_name} -> {self.quiz.title}"
+
+    def save(self, *args, **kwargs):
+        if not self.arena_password:
+            import random
+            import string
+            while True:
+                candidate = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                if not QuizRegistration.objects.filter(quiz=self.quiz, arena_password=candidate).exists():
+                    self.arena_password = candidate
+                    break
+        super().save(*args, **kwargs)
 
 class Question(models.Model):
     class QuestionType(models.TextChoices):
@@ -324,5 +339,22 @@ class SystemPreferences(models.Model):
     def get_solo(cls):
         obj, created = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class SpectatorPollVote(models.Model):
+    attempt = models.ForeignKey(HotseatAttempt, on_delete=models.CASCADE, related_name='spectator_votes')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    choice = models.ForeignKey(Choice, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["attempt", "student", "question"], name="unique_spectator_vote")
+        ]
+
+    def __str__(self):
+        return f"{self.student.full_name} voted for {self.choice.text} on Q{self.question.order}"
+
 
 

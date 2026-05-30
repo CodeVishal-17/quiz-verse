@@ -36,6 +36,8 @@ from quizzes.views import (
     HotseatSelectSwitchCategoryView,
     AdminConfirmSwitchLifelineView,
     SystemPreferencesView,
+    SpectatorVoteView,
+    QuizDetailedReportView,
 )
 
 router = DefaultRouter()
@@ -46,6 +48,8 @@ urlpatterns = [
     # Admin routes
     path('admin-stats/', AdminStatsView.as_view(), name='admin-stats'),
     path('admin/preferences/', SystemPreferencesView.as_view(), name='quiz-admin-preferences'),
+    path('<int:pk>/detailed-report/', QuizDetailedReportView.as_view(), name='quiz-detailed-report'),
+
     
     # Student routes
     path('published/', PublishedQuizListView.as_view(), name='published-quizzes'),
@@ -71,6 +75,7 @@ urlpatterns = [
     path('<int:pk>/hotseat-preselect/', HotseatPreselectView.as_view(), name='quiz-hotseat-preselect'),
     path('<int:pk>/hotseat-lifeline-request/', HotseatLifelineRequestView.as_view(), name='quiz-hotseat-lifeline-request'),
     path('<int:pk>/hotseat-lifeline-acknowledge/', HotseatLifelineAcknowledgeView.as_view(), name='quiz-hotseat-lifeline-acknowledge'),
+    path('<int:pk>/spectator-vote/', SpectatorVoteView.as_view(), name='quiz-spectator-vote'),
     path('<int:pk>/switch-categories/', StudentSwitchCategoryListView.as_view(), name='quiz-switch-categories'),
     path('<int:pk>/hotseat-select-switch-category/', HotseatSelectSwitchCategoryView.as_view(), name='quiz-hotseat-select-switch-category'),
     path('admin/<int:pk>/approve_lifeline/', AdminApproveLifelineView.as_view(), name='quiz-admin-approve-lifeline'),
